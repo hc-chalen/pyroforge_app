@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# PyroForge — root .gitignore
+# Backend- and frontend-specific rules live in backend/.gitignore and
+# frontend/.gitignore. This file covers repo-wide concerns.
+# ---------------------------------------------------------------------------
+
+# --- Secrets / environment ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Editor / tooling ---
+.idea/
+*.swp
+*.swo
+# Keep shared Cursor plans, ignore local settings
+.claude/settings.local.json
+
+# ---------------------------------------------------------------------------
+# Large ML data / embeddings (NOT stored in git — too large for GitHub/LFS)
+# Regenerate via the backend embedding scripts or download from shared storage.
+#   esm2_train.pt (~2.7 GB), esm2_50k.pt (~250 MB), esm2_test.pt (~107 MB)
+# ---------------------------------------------------------------------------
+*.pt
+*.pth
+*.npz
+*.npy
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.onnx
+*.safetensors
+
+# Precomputed ESM2 embeddings at repo root
+/esm2_*.pt
+
+.cursor/

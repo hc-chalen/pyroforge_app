@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# PyroForge — dev override (auto-merged by `docker compose up`).
+#
+# Turns the production base stack into a hot-reloading dev stack: source
+# bind-mounts, uvicorn --reload, and the Vite dev server. Compose merges this
+# on top of docker-compose.yml automatically; to run the production stack
+# instead, pass only the base file: `docker compose -f docker-compose.yml up`.
+# ---------------------------------------------------------------------------
+services:
+  backend:
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      # Live source for hot reload; the anonymous volume preserves the
+      # container-built virtualenv from being shadowed by the host mount.
+      - ./backend:/app
+      - /app/.venv
+
+  celery-worker:
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+
+  frontend:
+    build:
+      target: dev
+    command: npm run dev -- --host 0.0.0.0
+    # !override replaces the base port list instead of appending to it (both map
+    # host 5173, which would otherwise collide).
+    ports: !override
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules

@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# PyroForge backend (Python / uv / FastAPI / Celery / PyTorch)
+# ---------------------------------------------------------------------------
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Byte-compiled / caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# --- Runtime cache (fetched PDB structures, embeddings scratch, etc.) ---
+cache/
+
+# --- Packaging / build ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Local env ---
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Model checkpoints & training artifacts
+# Binary weights are ignored (regenerate via training scripts); text reports
+# and plots are kept so results stay reviewable in the repo.
+# ---------------------------------------------------------------------------
+checkpoints/**/*.pt
+checkpoints/**/*.pth
+checkpoints/**/*.pkl
+checkpoints/**/*.joblib
+checkpoints/**/*.npz
+checkpoints/**/*.npy
+checkpoints/**/*.safetensors
+# Large datasets accidentally dropped into checkpoints (keep only reports/plots)
+checkpoints/**/*.fasta
+checkpoints/**/*.csv
+checkpoints/**/*.parquet
+checkpoints/**/*.tsv
+
+# Keep the checkpoints directory tree, reports and plots
+!checkpoints/**/*.json
+!checkpoints/**/*.md
+!checkpoints/**/*.txt
+!checkpoints/**/*.png
+
+# Served model weights ARE versioned (via Git LFS — see .gitattributes) so the
+# deployable models ship with the repo. Large training embeddings and nested
+# experiment checkpoints remain ignored above.
+!checkpoints/model_ddg.pt
+!checkpoints/model_thermo.pt
+
+# --- Local/large datasets (keep small reference data like data/*.fasta) ---
+data/**/*.pt
+data/**/*.csv
+data/**/*.parquet
+
+# --- Logs / scratch ---
+*.log
+logs/
+mlruns/
+wandb/
+
+# ---------------------------------------------------------------------------
+# Offline plotting / evaluation scripts (research only — NOT part of the
+# deployed FastAPI/Celery software). Kept locally for regenerating figures,
+# but excluded from the repo so only runtime code ships.
+# ---------------------------------------------------------------------------
+app/training/evaluate_and_visualize.py
+app/training/autopytorch_visualize.py
+app/training/evaluate_all_models.py

@@ -1,0 +1,91 @@
+{
+  "method": "Hyperband NAS (autoPyTorch BOHB methodology)",
+  "design": "hybrid_dg",
+  "note": "Official autoPyTorch package requires sklearn<0.25 and is incompatible with Python 3.12. This implements the same multi-fidelity MLP search. NAS pickles are for benchmarking; deploy PyTorch checkpoints from train.py.",
+  "total_time_limit_secs": 1800,
+  "targets": [
+    "dg"
+  ],
+  "max_train_rows": 50000,
+  "search_space": {
+    "width_choices": [
+      128,
+      256,
+      512,
+      768,
+      1024
+    ],
+    "min_layers": 2,
+    "max_layers": 5
+  },
+  "time_budget": {
+    "thermo_dg": 1800
+  },
+  "split": {
+    "split_method": "parent_group_validation:parent_protein_ids",
+    "seed": 42,
+    "train_rows": 494370,
+    "val_rows": 49995,
+    "test_rows": 0,
+    "train_parent_count": 449,
+    "val_parent_count": 50,
+    "total_parent_count": 499
+  },
+  "training_data_path": "esm2_train.pt",
+  "evaluation_scope": "internal_validation_only",
+  "checkpoint_dir": "backend/checkpoints/autopytorch",
+  "seed": 42,
+  "device": "mps",
+  "model_thermo_dg": {
+    "dataset_name": "pyroforge_thermo_dg",
+    "time_limit_secs": 1800,
+    "train_rows_full": 465164,
+    "train_rows_searched": 50000,
+    "val_rows": 48525,
+    "val_metrics": {
+      "mae": 0.9530624236856508,
+      "rmse": 1.2629356101285087,
+      "pearson_r": 0.5503361705933896
+    },
+    "best_config": {
+      "widths": [
+        128,
+        1024,
+        128,
+        1024
+      ],
+      "dropout": 0.4147697510008554,
+      "lr": 0.0009937480395311908,
+      "weight_decay": 0.0001304656360450818,
+      "batch_size": 64,
+      "input_dim": 1280
+    },
+    "best_budget_epochs": 72,
+    "search_history": [
+      {
+        "round": 0,
+        "stage": 0,
+        "budget_epochs": 8,
+        "n_trials": 60,
+        "best_val_loss": 1.6158325377092204,
+        "best_mae": 0.9560730403547971
+      },
+      {
+        "round": 0,
+        "stage": 1,
+        "budget_epochs": 24,
+        "n_trials": 20,
+        "best_val_loss": 1.607205073793596,
+        "best_mae": 0.9492511697376701
+      },
+      {
+        "round": 0,
+        "stage": 2,
+        "budget_epochs": 72,
+        "n_trials": 2,
+        "best_val_loss": 1.5950063553306688,
+        "best_mae": 0.9530624236856508
+      }
+    ]
+  }
+}

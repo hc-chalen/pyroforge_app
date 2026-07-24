@@ -1,0 +1,52 @@
+[project]
+name = "pyroforge-backend"
+version = "0.1.0"
+description = "PyroForge bio-computation backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "celery[redis]>=5.4.0",
+    "redis>=5.2.0",
+    "pydantic-settings>=2.6.0",
+    "torch>=2.2.0",
+    "fair-esm>=2.0.0",
+    "numpy>=1.26.0",
+    "scipy>=1.11.0",
+    "scikit-learn>=1.4.0",
+    "biopython>=1.83",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.9",
+    "matplotlib>=3.8.0",
+    "pandas>=2.0.0",
+]
+
+[project.scripts]
+# Served-model training pipeline (run in this order for a full rebuild)
+pyroforge-train = "app.training.train:main"                       # model_thermo (dG-only ensemble)
+pyroforge-train-ddg = "app.training.train_ddg:main"               # model_ddg (served ΔΔG, antisymmetric)
+pyroforge-ingest-meltome = "app.training.ingest_meltome:main"     # download + ESM2-embed Meltome Atlas
+pyroforge-train-tm = "app.training.train_tm_meltome:main"         # model_tm (served absolute Tm)
+pyroforge-automl-tm = "app.training.automl_tm:main"               # AutoML search → tune/promote model_tm
+# Offline NAS research tooling (feeds the /models/nas-report panel)
+pyroforge-autopytorch = "app.training.autopytorch_tune:main"
+
+# NOTE: offline evaluation/plotting scripts (evaluate_all_models,
+# evaluate_and_visualize, autopytorch_visualize) are intentionally git-ignored
+# (see backend/.gitignore) and therefore not exposed as console scripts here.
+# Run them locally via `uv run python -m app.training.<module>` if needed.
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

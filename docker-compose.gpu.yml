@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# PyroForge — NVIDIA GPU override (production).
+#
+# Reserves the host GPU for the backend + Celery worker so ESM-2 embedding and
+# optimization run on CUDA instead of CPU. Requires the NVIDIA Container Toolkit
+# on the host. This override is NOT auto-merged — pass it explicitly, and set
+# DEVICE=cuda so the app selects the GPU:
+#
+#   DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+#
+# (Do not combine with docker-compose.override.yml — that is the dev stack.)
+# ---------------------------------------------------------------------------
+services:
+  backend:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  celery-worker:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

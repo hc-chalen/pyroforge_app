@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# PyroForge — base (production-oriented) stack.
+#
+#   docker compose up                    → dev stack (this file + the auto-merged
+#                                           docker-compose.override.yml: hot reload,
+#                                           Vite dev server, source bind-mounts)
+#   docker compose -f docker-compose.yml up
+#                                        → production stack (this file only: baked
+#                                           images, no reload, nginx frontend)
+#   DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+#                                        → production stack on an NVIDIA GPU
+#
+# Serving needs the trained checkpoints in ./backend/checkpoints and the ESM-2
+# weights (downloaded once to ~/.cache/torch). The esm2_*.pt files are training
+# data only.
+# ---------------------------------------------------------------------------
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATA_PATH: /data/esm2_50k.pt
+      CHECKPOINT_DIR: /app/checkpoints
+      # CPU by default (correct on any host; required on Apple Silicon — ESM-2 is
+      # degenerate on MPS). Set DEVICE=cuda on a GPU host, ideally with the
+      # docker-compose.gpu.yml override that reserves the NVIDIA device.
+      DEVICE: ${DEVICE:-cpu}
+      TORCH_HOME: /app/cache/torch
+      PRELOAD_ESM2_ON_STARTUP: "false"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./esm2_50k.pt:/data/esm2_50k.pt:ro
+      - ./backend/checkpoints:/app/checkpoints
+      - pyroforge-cache:/app/cache
+      # Reuse host ESM-2 weights so Docker does not re-download ~2.5 GB.
+      - ${HOME}/.cache/torch:/app/cache/torch
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      # First boot may download ESM-2 weights; don't mark unhealthy meanwhile.
+      start_period: 60s
+
+  celery-worker:
+    build: ./backend
+    command: uv run celery -A app.core.celery_app worker --loglevel=info --pool=solo --concurrency=1
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATA_PATH: /data/esm2_50k.pt
+      CHECKPOINT_DIR: /app/checkpoints
+      DEVICE: ${DEVICE:-cpu}
+      TORCH_HOME: /app/cache/torch
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./esm2_50k.pt:/data/esm2_50k.pt:ro
+      - ./backend/checkpoints:/app/checkpoints
+      - pyroforge-cache:/app/cache
+      - ${HOME}/.cache/torch:/app/cache/torch
+
+  frontend:
+    build:
+      context: ./frontend
+      target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pyroforge-cache:

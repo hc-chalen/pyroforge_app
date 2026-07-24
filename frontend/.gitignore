@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# PyroForge frontend (Vite / React / TypeScript)
+# ---------------------------------------------------------------------------
+
+# --- Dependencies ---
+node_modules/
+.pnp
+.pnp.js
+
+# --- Build output ---
+dist/
+dist-ssr/
+build/
+
+# --- Vite / TS caches ---
+*.tsbuildinfo
+.vite/
+
+# --- Local env ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log

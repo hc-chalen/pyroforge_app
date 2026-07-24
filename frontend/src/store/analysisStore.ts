@@ -1,0 +1,347 @@
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { clearFoldPdb, setFoldPdb } from "@/store/foldPdbCache";
+import type {
+  FoldResult,
+  HeatmapResponse,
+  OptimizationResult,
+  PredictResponse,
+  ProcureResponse,
+  RegistrySearchResponse,
+  SequenceVariant,
+  StructureComparison,
+  VariantResults,
+} from "@/types/api";
+
+export type AnalysisStatus = "draft" | "running" | "complete" | "error";
+
+export interface Analysis {
+  id: string;
+  name: string;
+  sequence: string;
+  status: AnalysisStatus;
+  pinned?: boolean;
+  sequenceVariant?: SequenceVariant;
+  prediction?: PredictResponse;
+  optimization?: OptimizationResult;
+  structureComparison?: StructureComparison;
+  /** @deprecated use variantResults */
+  fold?: FoldResult;
+  heatmap?: HeatmapResponse;
+  /** @deprecated use variantResults */
+  registry?: RegistrySearchResponse;
+  /** @deprecated use variantResults */
+  procurement?: ProcureResponse;
+  variantResults?: Partial<Record<SequenceVariant, VariantResults>>;
+  error?: string;
+}
+
+interface AnalysisState {
+  analyses: Analysis[];
+  selectedId: string | null;
+  checkedIds: string[];
+  addAnalysis: () => void;
+  selectAnalysis: (id: string) => void;
+  toggleChecked: (id: string) => void;
+  selectAllChecked: () => void;
+  clearChecked: () => void;
+  removeChecked: () => void;
+  togglePinChecked: () => void;
+  ensureActiveSelection: () => void;
+  removeAnalysis: (id: string) => void;
+  renameAnalysis: (id: string, name: string) => void;
+  togglePin: (id: string) => void;
+  updateSequence: (id: string, sequence: string) => void;
+  setStatus: (id: string, status: AnalysisStatus) => void;
+  setError: (id: string, error: string | undefined) => void;
+  setPrediction: (id: string, prediction: PredictResponse, variant: SequenceVariant) => void;
+  setOptimization: (id: string, optimization: OptimizationResult) => void;
+  setSequenceVariant: (id: string, variant: SequenceVariant) => void;
+  setStructureComparison: (id: string, comparison: StructureComparison) => void;
+  setFold: (id: string, fold: FoldResult, variant: SequenceVariant) => void;
+  setHeatmap: (id: string, heatmap: HeatmapResponse) => void;
+  setRegistry: (id: string, registry: RegistrySearchResponse, variant: SequenceVariant) => void;
+  setProcurement: (id: string, procurement: ProcureResponse, variant: SequenceVariant) => void;
+  getSelected: () => Analysis | undefined;
+}
+
+function nextAnalysisName(analyses: Analysis[]): string {
+  const used = new Set(
+    analyses.map((a) => {
+      const match = /^Analysis (\d+)$/.exec(a.name);
+      return match ? Number(match[1]) : 0;
+    }),
+  );
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return `Analysis ${n}`;
+}
+
+export const useAnalysisStore = create<AnalysisState>()(
+  persist(
+    (set, get) => ({
+      analyses: [],
+      selectedId: null,
+      checkedIds: [],
+
+      addAnalysis: () => {
+        const id = crypto.randomUUID();
+        const name = nextAnalysisName(get().analyses);
+        const analysis: Analysis = {
+          id,
+          name,
+          sequence: "",
+          status: "draft",
+        };
+        set((state) => ({
+          analyses: [...state.analyses, analysis],
+          selectedId: id,
+        }));
+      },
+
+      selectAnalysis: (id) => set({ selectedId: id }),
+
+      toggleChecked: (id) =>
+        set((state) => ({
+          checkedIds: state.checkedIds.includes(id)
+            ? state.checkedIds.filter((checkedId) => checkedId !== id)
+            : [...state.checkedIds, id],
+        })),
+
+      selectAllChecked: () =>
+        set((state) => ({
+          checkedIds: state.analyses.map((a) => a.id),
+        })),
+
+      clearChecked: () => set({ checkedIds: [] }),
+
+      removeChecked: () => {
+        const { checkedIds } = get();
+        if (checkedIds.length === 0) return;
+        for (const id of checkedIds) {
+          clearFoldPdb(id);
+        }
+        set((state) => {
+          const toRemove = new Set(checkedIds);
+          const analyses = state.analyses.filter((a) => !toRemove.has(a.id));
+          const selectedId =
+            state.selectedId && toRemove.has(state.selectedId)
+              ? (analyses[0]?.id ?? null)
+              : state.selectedId;
+          return { analyses, selectedId, checkedIds: [] };
+        });
+      },
+
+      togglePinChecked: () => {
+        const { checkedIds } = get();
+        if (checkedIds.length === 0) return;
+        const checked = new Set(checkedIds);
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            checked.has(a.id) ? { ...a, pinned: !a.pinned } : a,
+          ),
+        }));
+      },
+
+      ensureActiveSelection: () => {
+        const { analyses, selectedId, checkedIds } = get();
+        if (analyses.length === 0) {
+          if (selectedId !== null || checkedIds.length > 0) {
+            set({ selectedId: null, checkedIds: [] });
+          }
+          return;
+        }
+        const validSelected = analyses.some((a) => a.id === selectedId);
+        const validChecked = checkedIds.filter((id) =>
+          analyses.some((a) => a.id === id),
+        );
+        const nextSelected = validSelected ? selectedId : analyses[0].id;
+        if (
+          nextSelected !== selectedId ||
+          validChecked.length !== checkedIds.length
+        ) {
+          set({ selectedId: nextSelected, checkedIds: validChecked });
+        }
+      },
+
+      removeAnalysis: (id) => {
+        clearFoldPdb(id);
+        set((state) => {
+          const analyses = state.analyses.filter((a) => a.id !== id);
+          const selectedId =
+            state.selectedId === id
+              ? (analyses[0]?.id ?? null)
+              : state.selectedId;
+          const checkedIds = state.checkedIds.filter(
+            (checkedId) => checkedId !== id,
+          );
+          return { analyses, selectedId, checkedIds };
+        });
+      },
+
+      renameAnalysis: (id, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, name: trimmed } : a,
+          ),
+        }));
+      },
+
+      togglePin: (id) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, pinned: !a.pinned } : a,
+          ),
+        })),
+
+      updateSequence: (id, sequence) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, sequence: sequence.toUpperCase() } : a,
+          ),
+        })),
+
+      setStatus: (id, status) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, status } : a,
+          ),
+        })),
+
+      setError: (id, error) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, error, status: error ? "error" : a.status } : a,
+          ),
+        })),
+
+      setPrediction: (id, prediction, variant) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) => {
+            if (a.id !== id) return a;
+            const vr = { ...(a.variantResults ?? {}) };
+            vr[variant] = {
+              ...(vr[variant] ?? {}),
+              prediction,
+              predictionVariant: variant,
+            };
+            return { ...a, prediction, variantResults: vr, error: undefined };
+          }),
+        })),
+
+      setOptimization: (id, optimization) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id
+              ? {
+                  ...a,
+                  optimization,
+                  structureComparison:
+                    optimization.structure_comparison ?? a.structureComparison,
+                  sequenceVariant: a.sequenceVariant ?? "optimized",
+                  error: undefined,
+                }
+              : a,
+          ),
+        })),
+
+      setSequenceVariant: (id, variant) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, sequenceVariant: variant } : a,
+          ),
+        })),
+
+      setStructureComparison: (id, comparison) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, structureComparison: comparison } : a,
+          ),
+        })),
+
+      setFold: (id, fold, variant) => {
+        if (fold.pdb) {
+          setFoldPdb(id, fold.pdb, variant);
+        }
+        set((state) => ({
+          analyses: state.analyses.map((a) => {
+            if (a.id !== id) return a;
+            const vr = { ...(a.variantResults ?? {}) };
+            vr[variant] = {
+              ...(vr[variant] ?? {}),
+              fold,
+              foldVariant: variant,
+            };
+            return { ...a, fold, variantResults: vr, error: undefined };
+          }),
+        }));
+      },
+
+      setHeatmap: (id, heatmap) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) =>
+            a.id === id ? { ...a, heatmap, error: undefined } : a,
+          ),
+        })),
+
+      setRegistry: (id, registry, variant) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) => {
+            if (a.id !== id) return a;
+            const vr = { ...(a.variantResults ?? {}) };
+            vr[variant] = {
+              ...(vr[variant] ?? {}),
+              registry,
+              registryVariant: variant,
+            };
+            return { ...a, registry, variantResults: vr, error: undefined };
+          }),
+        })),
+
+      setProcurement: (id, procurement, variant) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) => {
+            if (a.id !== id) return a;
+            const vr = { ...(a.variantResults ?? {}) };
+            vr[variant] = {
+              ...(vr[variant] ?? {}),
+              procurement,
+              procurementVariant: variant,
+            };
+            return {
+              ...a,
+              procurement,
+              variantResults: vr,
+              error: undefined,
+              status: "complete",
+            };
+          }),
+        })),
+
+      getSelected: () => {
+        const { analyses, selectedId } = get();
+        return analyses.find((a) => a.id === selectedId);
+      },
+    }),
+    {
+      name: "pyroforge-analyses",
+      partialize: (state) => ({
+        analyses: state.analyses.map((a) => ({
+          ...a,
+          fold: a.fold
+            ? {
+                pdb_path: a.fold.pdb_path,
+                sequence_length: a.fold.sequence_length,
+                rmsf: a.fold.rmsf ?? [],
+                pdb: "",
+              }
+            : undefined,
+        })),
+        selectedId: state.selectedId,
+        checkedIds: state.checkedIds,
+      }),
+    },
+  ),
+);
