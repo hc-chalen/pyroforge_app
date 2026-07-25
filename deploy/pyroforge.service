@@ -1,0 +1,29 @@
+[Unit]
+# PyroForge — auto-start the Docker Compose stack on boot (school GPU server).
+Description=PyroForge web app (Docker Compose stack)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+
+# --- EDIT THIS to the path where you `git clone`d the repo on the server ---
+WorkingDirectory=/home/codingteam/pyroforge_app
+
+# Run as codingteam's environment so ${HOME}/.cache/torch (ESM-2 weights,
+# ~2.5 GB) resolves to /home/codingteam and is reused instead of re-downloaded.
+Environment=HOME=/home/codingteam
+# GPU host: select CUDA so ESM-2 runs on the NVIDIA card.
+Environment=DEVICE=cuda
+
+# Bring the production GPU stack up / down. -d = detached (daemon).
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.gpu.yml down
+
+# Give the first boot time to build images / download weights.
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

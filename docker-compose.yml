@@ -84,10 +84,11 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     ports:
-      - "5173:80"
+      - "3002:80"
     depends_on:
       backend:
         condition: service_healthy
 
+# NOTE: frontend is exposed on host port 3002 (school-server deployment).
 volumes:
   pyroforge-cache:
