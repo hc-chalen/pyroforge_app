@@ -40,6 +40,10 @@ services:
       DEVICE: ${DEVICE:-cpu}
       TORCH_HOME: /app/cache/torch
       PRELOAD_ESM2_ON_STARTUP: "false"
+      # Browser origins allowed to call the API. Defaults to localhost for dev;
+      # on a remote host set CORS_ORIGINS in .env, e.g.
+      #   CORS_ORIGINS=["http://100.65.250.65:3002"]
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
     depends_on:
       redis:
         condition: service_healthy
