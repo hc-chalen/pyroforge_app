@@ -10,7 +10,8 @@ export interface PredictRequest {
 }
 
 export interface PredictResponse {
-  tm: number;
+  // The Tm head is retired on the backend, so this can come back null.
+  tm: number | null;
   dg?: number;
   ddg?: number;
 }

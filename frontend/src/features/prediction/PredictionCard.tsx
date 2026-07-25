@@ -179,7 +179,9 @@ export function PredictionCard({
                   {showBaselineTm ? (
                     <>
                       <Text fw={700} size="lg" ff="monospace">
-                        ≈ {optimization!.baseline_tm.toFixed(2)}
+                        ≈ {optimization!.baseline_tm != null
+                          ? optimization!.baseline_tm.toFixed(2)
+                          : "—"}
                       </Text>
                       <Text size="xs" c="dimmed">
                         Point mutations don't shift Tm — see ΔΔG.
@@ -187,7 +189,9 @@ export function PredictionCard({
                     </>
                   ) : (
                     <Text fw={700} size="lg" ff="monospace">
-                      {displayPrediction.tm.toFixed(2)}
+                      {displayPrediction.tm != null
+                        ? displayPrediction.tm.toFixed(2)
+                        : "—"}
                     </Text>
                   )}
                 </StatPaper>

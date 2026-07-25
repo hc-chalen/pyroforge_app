@@ -82,7 +82,10 @@ export function ThermalStructureCard({
     if (variant === "optimized" && optimization?.baseline_tm != null) {
       return optimization.baseline_tm;
     }
-    return baselineMeltingTemperature(prediction?.tm, optimization?.baseline_tm);
+    return baselineMeltingTemperature(
+      prediction?.tm ?? undefined,
+      optimization?.baseline_tm,
+    );
   }, [variant, prediction?.tm, optimization?.baseline_tm]);
 
   const { min: tempMin, max: tempMax, default: tempDefault } = useMemo(
