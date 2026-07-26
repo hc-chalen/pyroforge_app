@@ -1,1 +1,2 @@
 backend/checkpoints/*.pt filter=lfs diff=lfs merge=lfs -text
+backend/checkpoints/**/*.joblib filter=lfs diff=lfs merge=lfs -text
