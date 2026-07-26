@@ -63,7 +63,7 @@ export interface OptimizationResult {
   wild_type_sequence: string;
   optimized_sequence: string;
   mutations: MutationResult[];
-  baseline_tm: number;
+  baseline_tm: number | null;
   ddg: number;
   scan_summary: Record<string, unknown>;
   structure_comparison?: StructureComparison;

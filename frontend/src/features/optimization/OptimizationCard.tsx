@@ -116,7 +116,9 @@ export function OptimizationCard({
                   tooltip="Absolute Tm of the input protein from the Meltome-trained model_tm. A few point mutations barely move the mean-pooled embedding, so the variant's Tm stays ≈ this value — use ΔΔG for the stabilization effect."
                 />
                 <Text fw={700} size="lg" ff="monospace">
-                  {optimization.baseline_tm.toFixed(2)}
+                  {optimization.baseline_tm != null
+                    ? optimization.baseline_tm.toFixed(2)
+                    : "—"}
                 </Text>
               </StatPaper>
               <StatPaper>
@@ -126,7 +128,7 @@ export function OptimizationCard({
                   tooltip="Total ΔΔG of the selected mutations from difference-embedding model_ddg. Positive = stabilizing → predicted more thermostable. This is the optimization objective."
                 />
                 <Text fw={700} size="lg" ff="monospace">
-                  {optimization.ddg.toFixed(2)}
+                  {optimization.ddg != null ? optimization.ddg.toFixed(2) : "—"}
                 </Text>
               </StatPaper>
             </SimpleGrid>

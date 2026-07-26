@@ -20,7 +20,7 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 # --- Build: emit static assets into /app/dist --------------------------------
 # VITE_API_URL is baked into the bundle at build time (Vite inlines import.meta.env).
 FROM base AS build
-ARG VITE_API_URL=http://localhost:8000
+ARG VITE_API_URL=
 ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 

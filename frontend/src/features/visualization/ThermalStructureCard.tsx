@@ -84,7 +84,7 @@ export function ThermalStructureCard({
     }
     return baselineMeltingTemperature(
       prediction?.tm ?? undefined,
-      optimization?.baseline_tm,
+      optimization?.baseline_tm ?? undefined,
     );
   }, [variant, prediction?.tm, optimization?.baseline_tm]);
 

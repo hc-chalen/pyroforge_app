@@ -17,8 +17,11 @@
 services:
   redis:
     image: redis:7-alpine
+    # Bind to loopback only: Redis has no auth and must not be reachable from the
+    # (shared) network. Containers still reach it as `redis:6379` on the compose
+    # network. Comment out entirely to not publish it on the host at all.
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -28,8 +31,11 @@ services:
   backend:
     build: ./backend
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # Loopback only: with the same-origin nginx proxy the browser never hits the
+    # backend directly, so it need not be exposed to the shared network. Kept on
+    # 127.0.0.1 for local debugging on the server (curl localhost:8000/health).
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
       DATA_PATH: /data/esm2_50k.pt
@@ -86,7 +92,10 @@ services:
       context: ./frontend
       target: production
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        # Empty → the bundle uses same-origin relative URLs, proxied by the
+        # frontend nginx to the backend. No CORS, no mixed content, backend need
+        # not be publicly exposed. Override only for a cross-origin setup.
+        VITE_API_URL: ${VITE_API_URL:-}
     ports:
       - "3002:80"
     depends_on:

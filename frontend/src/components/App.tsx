@@ -100,7 +100,7 @@ export function App() {
             {healthError && (
               <Alert color="red" mb="md" title="Backend unreachable">
                 {healthError}. Start the API at{" "}
-                {import.meta.env.VITE_API_URL ?? "http://localhost:8000"}.
+                {import.meta.env.VITE_API_URL || window.location.origin}.
               </Alert>
             )}
 
