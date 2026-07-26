@@ -44,3 +44,9 @@ Desktop.ini
 /esm2_*.pt
 
 .cursor/
+# --- Access gate (temporary trial login layer — see docs/OPERATIONS.md) ---
+# Real account hashes, never committed.
+auth/users.yml
+
+# --- Usage logs written by the auth gateway ---
+logs/

@@ -19,8 +19,13 @@ Environment=HOME=/home/codingteam
 Environment=DEVICE=cuda
 
 # Bring the production GPU stack up / down. -d = detached (daemon).
-ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.gpu.yml down
+#
+# The -f docker-compose.auth.yml and -f docker-compose.monitor.yml overlays are
+# the TEMPORARY trial login gate and usage monitoring. To remove them after the
+# trial, drop those two flags from both lines below and follow the teardown
+# checklist in docs/OPERATIONS.md (the frontend port must move back to 3002).
+ExecStart=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.gpu.yml -f docker-compose.auth.yml -f docker-compose.monitor.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.yml -f docker-compose.gpu.yml -f docker-compose.auth.yml -f docker-compose.monitor.yml down
 
 # Give the first boot time to build images / download weights.
 TimeoutStartSec=0

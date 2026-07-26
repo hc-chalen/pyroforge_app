@@ -1,0 +1,23 @@
+# PyroForge accounts — template.
+#
+# Copy to auth/users.yml (gitignored — never commit real hashes) and fill in with
+# hashes from hashpw.py:
+#
+#   cp auth/users.example.yml auth/users.yml
+#   docker compose -f docker-compose.yml -f docker-compose.auth.yml \
+#       run --rm --no-deps auth-service python hashpw.py alice
+#
+# One account per person rather than shared logins: it costs nothing extra and
+# it is what makes the usage report readable (see monitoring/usage_report.py).
+#
+# Edits take effect on the next login attempt — no restart needed. Removing a
+# line blocks future logins but does not kill an existing session; to force
+# everyone out immediately, change AUTH_SECRET_KEY in .env and restart
+# auth-service.
+
+users:
+  # Password: "change-me-please". For local testing only — delete this account
+  # before the server is reachable by anyone else.
+  demo: "$2b$12$2RWjxVQV8jn.C.tO6Ii1S.t/UPY2AfKQgp3n.3f9SZXbcxyKb02ay"
+  # alice: "$2b$12$..."
+  # bob:   "$2b$12$..."

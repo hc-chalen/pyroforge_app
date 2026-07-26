@@ -134,6 +134,24 @@ curl http://localhost:8000/health
 
 ---
 
+## Trial deployment: login gate & usage monitoring
+
+The shared GPU-server deployment currently sits behind a **temporary login
+page**, with per-account usage monitoring alongside it. Both live entirely in
+`auth/` and `monitoring/` plus two compose overlays — no auth code exists in
+`backend/app/**` or `frontend/src/**`, and removing the gate later is a
+delete-two-directories operation.
+
+See **[docs/OPERATIONS.md](docs/OPERATIONS.md)** for setup, managing accounts,
+reading the usage reports, and the teardown checklist.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+               -f docker-compose.auth.yml -f docker-compose.monitor.yml up -d
+```
+
+---
+
 ## Running locally (without Docker)
 
 Useful for development with instant reload. You need Python 3.12 +
