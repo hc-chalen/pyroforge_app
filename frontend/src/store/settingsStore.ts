@@ -3,6 +3,21 @@ import { persist } from "zustand/middleware";
 
 export type ColorScheme = "light" | "dark";
 
+/** Organisms the backend has a codon-adaptiveness table for (app.services.codon). */
+export const ORGANISMS = [
+  { value: "ecoli", label: "E. coli" },
+  { value: "yeast", label: "S. cerevisiae" },
+] as const;
+
+export const DEFAULT_ORGANISM = "ecoli";
+
+/** Keep the stored organism to one the backend supports — it rejects the rest. */
+function coerceOrganism(value: unknown): string {
+  return ORGANISMS.some((o) => o.value === value)
+    ? (value as string)
+    : DEFAULT_ORGANISM;
+}
+
 export const NAVBAR_MIN_WIDTH = 200;
 export const NAVBAR_MAX_WIDTH = 480;
 export const NAVBAR_DEFAULT_WIDTH = 280;
@@ -34,14 +49,14 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       maxMutations: 5,
       perplexityThreshold: 0.05,
-      organism: "ecoli",
+      organism: DEFAULT_ORGANISM,
       maxHits: 10,
       colorScheme: "light",
       navbarWidth: NAVBAR_DEFAULT_WIDTH,
       setMaxMutations: (maxMutations) => set({ maxMutations }),
       setPerplexityThreshold: (perplexityThreshold) =>
         set({ perplexityThreshold }),
-      setOrganism: (organism) => set({ organism }),
+      setOrganism: (organism) => set({ organism: coerceOrganism(organism) }),
       setMaxHits: (maxHits) => set({ maxHits }),
       setColorScheme: (colorScheme) => set({ colorScheme }),
       toggleColorScheme: () =>
@@ -50,6 +65,14 @@ export const useSettingsStore = create<SettingsState>()(
         }),
       setNavbarWidth: (width) => set({ navbarWidth: clampNavbarWidth(width) }),
     }),
-    { name: "pyroforge-settings" },
+    {
+      name: "pyroforge-settings",
+      // A previously persisted organism may no longer be supported (e.g. "human",
+      // which silently produced E. coli DNA); drop it back to the default on load.
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<SettingsState>) };
+        return { ...merged, organism: coerceOrganism(merged.organism) };
+      },
+    },
   ),
 );

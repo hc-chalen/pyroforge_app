@@ -9,7 +9,11 @@ import {
   Text,
 } from "@mantine/core";
 import { ModelDesignPanel } from "@/features/prediction/ModelDesignPanel";
-import { useSettingsStore } from "@/store/settingsStore";
+import {
+  DEFAULT_ORGANISM,
+  ORGANISMS,
+  useSettingsStore,
+} from "@/store/settingsStore";
 
 interface SettingsModalProps {
   opened: boolean;
@@ -59,12 +63,8 @@ export function SettingsModal({ opened, onClose }: SettingsModalProps) {
           label="Expression organism"
           description="Codon optimization target"
           value={organism}
-          onChange={(v) => setOrganism(v ?? "ecoli")}
-          data={[
-            { value: "ecoli", label: "E. coli" },
-            { value: "yeast", label: "S. cerevisiae" },
-            { value: "human", label: "Human" },
-          ]}
+          onChange={(v) => setOrganism(v ?? DEFAULT_ORGANISM)}
+          data={ORGANISMS.map((o) => ({ value: o.value, label: o.label }))}
         />
         <NumberInput
           label="Registry max hits"

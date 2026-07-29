@@ -124,7 +124,8 @@ export function ProcurementCard({
                   GC content
                 </Text>
                 <Text fw={700} ff="monospace">
-                  {(procurement.gc_content * 100).toFixed(1)}%
+                  {/* Backend already returns a percentage (0–100). */}
+                  {procurement.gc_content.toFixed(1)}%
                 </Text>
               </StatPaper>
               {procurement.price_usd != null && (
