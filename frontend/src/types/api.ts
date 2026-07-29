@@ -9,11 +9,20 @@ export interface PredictRequest {
   mutations?: MutationSchema[];
 }
 
+export type TmConfidence = "high" | "low" | "unavailable";
+
 export interface PredictResponse {
-  // The Tm head is retired on the backend, so this can come back null.
+  // null when no model_tm checkpoint is installed (tm_confidence: "unavailable").
   tm: number | null;
-  dg?: number;
-  ddg?: number;
+  dg?: number | null;
+  ddg?: number | null;
+  /** ± half-width of the 95% interval, in the metric's own unit. */
+  tm_ci95?: number | null;
+  dg_ci95?: number | null;
+  ddg_ci95?: number | null;
+  /** "low" when the sequence is outside model_tm's training length window. */
+  tm_confidence?: TmConfidence | null;
+  tm_confidence_reason?: string | null;
 }
 
 export interface OptimizeRequest {

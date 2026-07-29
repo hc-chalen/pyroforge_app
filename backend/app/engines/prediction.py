@@ -68,19 +68,21 @@ class PredictionEngine:
 
     def _tm_from_embedding(
         self, raw_emb: torch.Tensor, n_residues: int | None = None
-    ) -> dict[str, float]:
+    ) -> dict[str, object]:
         """Absolute Tm (°C) from the Meltome-trained model_tm on a raw embedding."""
         if self.store.model_tm is not None:
-            out: dict[str, float] = {
+            out: dict[str, object] = {
                 "tm": float(self.store.model_tm.predict(raw_emb.cpu().numpy())),
             }
             out.update(self._tm_confidence(n_residues))
             if self.store.tm_residual_std is not None:
                 out["tm_ci95"] = 1.96 * self.store.tm_residual_std
             return out
-        return {"tm": float("nan"), "tm_confidence": "unavailable"}
+        # None, not NaN: NaN serializes to a bare `NaN` literal that is not valid
+        # JSON and throws in the browser.
+        return {"tm": None, "tm_confidence": "unavailable"}
 
-    def predict_absolute(self, sequence: str) -> dict[str, float]:
+    def predict_absolute(self, sequence: str) -> dict[str, object]:
         self.ensure_ready()
         esm2 = self._get_esm2()
         seq = esm2.validate_sequence(sequence)
@@ -94,7 +96,7 @@ class PredictionEngine:
         if "dg" in cal:
             dg_v = cal["dg"]["slope"] * dg_v + cal["dg"]["intercept"]
         rs = self.store.thermo_residual_std or {}
-        out = {"dg": dg_v}
+        out: dict[str, object] = {"dg": dg_v}
         if "dg" in rs:
             out["dg_ci95"] = 1.96 * rs["dg"]
         # Absolute Tm from the Meltome-trained model_tm (reads the raw embedding).
@@ -161,16 +163,16 @@ class PredictionEngine:
         self.ensure_ready()
         return self._ddg_from_embeddings_batch(wt_emb, mut_embs)
 
-    def _ddg_out(self, ddg: float) -> dict[str, float]:
+    def _ddg_out(self, ddg: float) -> dict[str, object]:
         rs = self.store.ddg_residual_std or {}
-        out = {"ddg": ddg}
+        out: dict[str, object] = {"ddg": ddg}
         if "ddg" in rs:
             out["ddg_ci95"] = 1.96 * rs["ddg"]
         return out
 
     def predict_delta(
         self, wt_sequence: str, mutations: list[Mutation]
-    ) -> dict[str, float]:
+    ) -> dict[str, object]:
         """ΔΔG for a mutation set — used to rank candidate mutations."""
         self.ensure_ready()
         wt_emb, mut_emb, _ = self._embed_wt_mut(wt_sequence, mutations)
@@ -178,7 +180,7 @@ class PredictionEngine:
 
     def predict_mutant(
         self, wt_sequence: str, mutations: list[Mutation]
-    ) -> dict[str, float]:
+    ) -> dict[str, object]:
         """Mutant outputs: absolute Tm (model_tm on the mutant) + ΔΔG (model_ddg)."""
         self.ensure_ready()
         wt_emb, mut_emb, seq = self._embed_wt_mut(wt_sequence, mutations)
@@ -189,7 +191,7 @@ class PredictionEngine:
 
     def predict_full(
         self, sequence: str, mutations: list[Mutation] | None = None
-    ) -> dict[str, float]:
+    ) -> dict[str, object]:
         if mutations:
             return self.predict_mutant(sequence, mutations)
         return self.predict_absolute(sequence)

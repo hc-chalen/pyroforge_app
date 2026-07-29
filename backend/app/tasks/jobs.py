@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.api.schemas import PredictResponse
 from app.core.celery_app import celery_app
 from app.engines.prediction import Mutation
 from app.engines.registry import get_engine_registry
@@ -27,11 +28,9 @@ def predict_sequence(
         ]
     result = reg.prediction.predict_full(sequence, parsed_mutations)
     self.update_state(state="PROGRESS", meta={"progress": 0.9})
-    return {
-        "tm": result["tm"],
-        "dg": result.get("dg"),
-        "ddg": result.get("ddg"),
-    }
+    # Same payload as the synchronous /predict route, uncertainty + confidence
+    # flags included.
+    return PredictResponse.from_result(result).model_dump()
 
 
 @celery_app.task(bind=True, name="app.tasks.optimize_sequence")

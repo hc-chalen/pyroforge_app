@@ -23,7 +23,8 @@ class OptimizationResult:
     wild_type_sequence: str
     optimized_sequence: str
     mutations: list[Mutation]
-    baseline_tm: float  # absolute Tm of the input (wild-type) protein
+    # Absolute Tm of the input (wild-type) protein; None when no Tm model is installed.
+    baseline_tm: float | None
     ddg: float          # total ΔΔG of the selected set — positive = stabilizing
     scan_summary: dict = field(default_factory=dict)
 
@@ -177,12 +178,16 @@ class OptimizationEngine:
 
         # Baseline thermostability of the input protein — model_tm is reliable at the
         # whole-protein level, so this is the meaningful Tm to report.
-        baseline_tm = self.prediction.predict_absolute(seq)["tm"]
+        baseline = self.prediction.predict_absolute(seq)
+        baseline_tm = baseline["tm"]
+        baseline_tm = None if baseline_tm is None else float(baseline_tm)
         # ΔΔG (positive = stabilizing) is the optimization outcome, recomputed once on
         # the full selected set. We deliberately do NOT report a separate "variant Tm":
         # model_tm barely moves for a handful of point mutations, so it would be
         # ≈ baseline and easily misread as a thermal shift — the effect lives in ΔΔG.
-        ddg_value = self.prediction.predict_delta(seq, selected)["ddg"] if selected else 0.0
+        ddg_value = (
+            float(self.prediction.predict_delta(seq, selected)["ddg"]) if selected else 0.0
+        )
 
         return OptimizationResult(
             wild_type_sequence=seq,

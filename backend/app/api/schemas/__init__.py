@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
 
 
@@ -13,9 +15,49 @@ class PredictRequest(BaseModel):
 
 
 class PredictResponse(BaseModel):
-    tm: float
+    # ``tm`` is optional: when no model_tm checkpoint is installed the engine reports
+    # it as unavailable rather than emitting NaN (which is not valid JSON).
+    tm: float | None = None
     dg: float | None = None
     ddg: float | None = None
+    tm_ci95: float | None = Field(
+        default=None, description="±95% interval on absolute Tm (°C)"
+    )
+    dg_ci95: float | None = Field(
+        default=None, description="±95% interval on absolute ΔG (kcal/mol)"
+    )
+    ddg_ci95: float | None = Field(
+        default=None, description="±95% interval on ΔΔG (kcal/mol)"
+    )
+    tm_confidence: str | None = Field(
+        default=None,
+        description=(
+            "'high' when the sequence length is inside model_tm's training window, "
+            "'low' when the absolute Tm is extrapolated, 'unavailable' when no Tm "
+            "model is installed"
+        ),
+    )
+    tm_confidence_reason: str | None = Field(
+        default=None, description="Why tm_confidence is not 'high'"
+    )
+
+    # Fields the prediction engine may emit. Kept in one place so the sync route and
+    # the Celery task serialize the same payload.
+    RESULT_FIELDS: ClassVar[tuple[str, ...]] = (
+        "tm",
+        "dg",
+        "ddg",
+        "tm_ci95",
+        "dg_ci95",
+        "ddg_ci95",
+        "tm_confidence",
+        "tm_confidence_reason",
+    )
+
+    @classmethod
+    def from_result(cls, result: dict) -> "PredictResponse":
+        """Build the response from a ``PredictionEngine.predict_*`` dict."""
+        return cls(**{k: result.get(k) for k in cls.RESULT_FIELDS})
 
 
 class OptimizeRequest(BaseModel):

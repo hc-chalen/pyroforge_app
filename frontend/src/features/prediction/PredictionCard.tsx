@@ -26,6 +26,16 @@ import type {
 } from "@/types/api";
 import { hasOptimizedVariant } from "@/utils/sequenceVariant";
 
+/** ±95% interval under a stat value. Renders nothing when the model has no estimate. */
+function CiHint({ ci95, unit }: { ci95?: number | null; unit: string }) {
+  if (ci95 == null) return null;
+  return (
+    <Text size="xs" c="dimmed" ff="monospace">
+      ± {ci95.toFixed(1)} {unit} (95%)
+    </Text>
+  );
+}
+
 interface PredictionCardProps {
   analysisId: string;
   sequence: string;
@@ -158,6 +168,22 @@ export function PredictionCard({
                 </Text>
               </Alert>
             )}
+            {displayPrediction.tm_confidence === "low" && (
+              <Alert color="orange" variant="light" title="Tm is extrapolated" p="xs">
+                <Text size="xs">
+                  {displayPrediction.tm_confidence_reason ??
+                    "This sequence is outside model_tm's training range — treat the absolute Tm as indicative only."}
+                </Text>
+              </Alert>
+            )}
+            {displayPrediction.tm_confidence === "unavailable" && (
+              <Alert color="gray" variant="light" title="Tm unavailable" p="xs">
+                <Text size="xs">
+                  No model_tm checkpoint is installed, so absolute Tm could not be
+                  predicted for this sequence.
+                </Text>
+              </Alert>
+            )}
             <div style={{ opacity: isStale ? 0.5 : 1 }}>
               <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
                 <StatPaper>
@@ -182,11 +208,16 @@ export function PredictionCard({
                       </Text>
                     </>
                   ) : (
-                    <Text fw={700} size="lg" ff="monospace">
-                      {displayPrediction.tm != null
-                        ? displayPrediction.tm.toFixed(2)
-                        : "—"}
-                    </Text>
+                    <>
+                      <Text fw={700} size="lg" ff="monospace">
+                        {displayPrediction.tm != null
+                          ? displayPrediction.tm.toFixed(2)
+                          : "—"}
+                      </Text>
+                      {displayPrediction.tm != null && (
+                        <CiHint ci95={displayPrediction.tm_ci95} unit="°C" />
+                      )}
+                    </>
                   )}
                 </StatPaper>
                 {displayPrediction.dg != null && (
@@ -199,6 +230,7 @@ export function PredictionCard({
                     <Text fw={700} size="lg" ff="monospace">
                       {displayPrediction.dg.toFixed(2)}
                     </Text>
+                    <CiHint ci95={displayPrediction.dg_ci95} unit="kcal/mol" />
                   </StatPaper>
                 )}
                 {ddgValue != null && (
@@ -224,6 +256,7 @@ export function PredictionCard({
                           ? "Destabilizing"
                           : "Neutral"}
                     </Text>
+                    <CiHint ci95={displayPrediction.ddg_ci95} unit="kcal/mol" />
                   </StatPaper>
                 )}
               </SimpleGrid>

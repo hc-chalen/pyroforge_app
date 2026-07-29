@@ -52,11 +52,7 @@ def predict(body: PredictRequest, reg: EngineRegistry = Depends(engines)) -> Pre
                 for m in body.mutations
             ]
         result = reg.prediction.predict_full(body.sequence, mutations)
-        return PredictResponse(
-            tm=result["tm"],
-            dg=result.get("dg"),
-            ddg=result.get("ddg"),
-        )
+        return PredictResponse.from_result(result)
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:
