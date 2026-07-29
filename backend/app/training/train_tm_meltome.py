@@ -68,7 +68,8 @@ def run(meltome_npz: Path | None = None, out: Path | None = None) -> dict:
 
     model = TmRegressor().fit(emb[tr], tm[tr])
     test_metrics = _metrics(model.predict(emb[te]), tm[te])
-    resid = float(np.std(model.predict(emb[tr]) - tm[tr]))
+    # Held-out residual, not train — this becomes the served ±95% interval on Tm.
+    resid = float(np.std(model.predict(emb[te]) - tm[te]))
 
     # transfer diagnostic (record only): does the Meltome model read across to the
     # original tiny-domain assay? (Expected: weak — different measurement.)

@@ -172,7 +172,10 @@ def run_automl_tm(
 
     automl = TmAutoMLRegressor(best_est, recipe=f"automl:{winner}")
     automl_test = _metrics(automl.predict(Xte), yte)
-    resid = float(np.std(automl.predict(Xtr) - ytr))
+    # Held-out residual, not train: the served ±95% interval must reflect error on
+    # unseen proteins. A train residual understates it badly (the boosted/stacked
+    # members fit the training rows closely).
+    resid = float(np.std(automl.predict(Xte) - yte))
     logger.info("AutoML winner (%s)  test MAE=%.3f r=%.3f", winner,
                 automl_test["mae"], automl_test["pearson"])
 

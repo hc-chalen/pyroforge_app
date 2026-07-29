@@ -76,7 +76,13 @@ class ModelStore:
 
             ckpt_tm = joblib.load(path_tm)
             self.model_tm = ckpt_tm["model"]
-            self.tm_residual_std = (ckpt_tm.get("residual_std") or {}).get("tm")
+            # Prefer the held-out test RMSE over the stored residual_std: older
+            # checkpoints computed that residual on the training rows, which
+            # understates the served interval
+            # RMSE = sqrt(std² + bias²), a conservative and honest choice for a ±95% band
+            self.tm_residual_std = (ckpt_tm.get("test_metrics") or {}).get("rmse") or (
+                ckpt_tm.get("residual_std") or {}
+            ).get("tm")
             # Training length window for the in-distribution confidence check; fall
             # back to the documented Meltome ingestion defaults if not stored.
             self.tm_length_range = tuple(
