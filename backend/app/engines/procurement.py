@@ -18,7 +18,7 @@ class ProcurementEngine:
     ) -> dict:
         seq = protein_sequence.strip().upper()
         dna = self.codon.optimize(seq, organism)
-        analysis = self.codon.analyze(dna)
+        analysis = self.codon.analyze(dna, organism)
         twist_quote = self.twist.get_quote(dna)
 
         return {

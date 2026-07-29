@@ -103,7 +103,7 @@ class ProcureResponse(BaseModel):
     dna_sequence: str
     organism: str
     cai: float
-    gc_content: float
+    gc_content: float = Field(..., description="GC content as a percentage (0–100)")
     feasibility_flags: list[str]
     price_usd: float | None = None
     lead_time_days: int | None = None

@@ -58,8 +58,24 @@ GENETIC_CODE = {
 
 
 class CodonOptimizer:
+    @staticmethod
+    def _table(organism: str) -> dict[str, float]:
+        """Relative-adaptiveness table for ``organism``.
+
+        Raises rather than falling back to E. coli: a silent fallback returns
+        E. coli-optimized DNA while the response still echoes the requested
+        organism, and scores its CAI against the wrong reference set.
+        """
+        try:
+            return CODON_TABLES[organism]
+        except KeyError:
+            raise ValueError(
+                f"Unsupported expression organism {organism!r}. "
+                f"Supported: {', '.join(sorted(CODON_TABLES))}."
+            ) from None
+
     def optimize(self, protein: str, organism: str = "ecoli") -> str:
-        table = CODON_TABLES.get(organism, CODON_TABLES["ecoli"])
+        table = self._table(organism)
         codons = []
         for aa in protein:
             options = GENETIC_CODE.get(aa, ["NNN"])
@@ -67,10 +83,11 @@ class CodonOptimizer:
             codons.append(best)
         return "".join(codons)
 
-    def analyze(self, dna: str) -> dict:
+    def analyze(self, dna: str, organism: str = "ecoli") -> dict:
         dna = dna.upper()
+        # Percentage (0–100) — the feasibility thresholds below are in the same unit.
         gc = (dna.count("G") + dna.count("C")) / len(dna) * 100 if dna else 0.0
-        cai = self._compute_cai(dna)
+        cai = self._compute_cai(dna, organism)
         flags = []
         if gc < 25 or gc > 65:
             flags.append("gc_content_extreme")
@@ -80,8 +97,10 @@ class CodonOptimizer:
             flags.append("potential_hairpin")
         return {"cai": cai, "gc_content": round(gc, 2), "feasibility_flags": flags}
 
-    def _compute_cai(self, dna: str) -> float:
-        table = CODON_TABLES["ecoli"]
+    def _compute_cai(self, dna: str, organism: str = "ecoli") -> float:
+        # CAI must be scored against the organism the DNA was optimized for;
+        # scoring yeast-optimized DNA with E. coli weights is meaningless.
+        table = self._table(organism)
         weights = []
         for i in range(0, len(dna) - 2, 3):
             codon = dna[i : i + 3]
