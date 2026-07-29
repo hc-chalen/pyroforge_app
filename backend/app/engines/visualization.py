@@ -139,7 +139,7 @@ class VisualizationEngine:
         result = []
         for pos, aa in enumerate(sequence):
             score = residue_scores.get(pos, 0.0)
-            normalized = (score - vmin) / span
+            normalized = min(1.0, max(0.0, (score - vmin) / span))
             result.append({
                 "position": pos + 1,
                 "aa": aa,
@@ -151,9 +151,9 @@ class VisualizationEngine:
 
     @staticmethod
     def _score_to_color(normalized: float) -> str:
-        # blue (stable) -> red (labile)
-        r = int(255 * normalized)
-        b = int(255 * (1 - normalized))
+        t = min(1.0, max(0.0, normalized))
+        r = int(255 * t)
+        b = int(255 * (1 - t))
         return f"rgb({r}, 80, {b})"
 
     @staticmethod
