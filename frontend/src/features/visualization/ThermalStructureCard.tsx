@@ -29,8 +29,10 @@ import {
   downloadPdb,
 } from "@/utils/structureViewer";
 import {
+  FALLBACK_BASELINE_TM,
   baselineMeltingTemperature,
   computeResidueThermalStates,
+  hasPredictedBaselineTm,
   temperatureRange,
 } from "@/utils/thermalColors";
 import { normalizeRmsfEntries } from "@/utils/normalizeRmsf";
@@ -87,6 +89,13 @@ export function ThermalStructureCard({
       optimization?.baseline_tm ?? undefined,
     );
   }, [variant, prediction?.tm, optimization?.baseline_tm]);
+
+  // Whether baselineTm came from a model or from the fallback reference — the
+  // fallback must never be labelled "predicted Tm".
+  const tmIsPredicted = hasPredictedBaselineTm(
+    prediction?.tm,
+    optimization?.baseline_tm,
+  );
 
   const { min: tempMin, max: tempMax, default: tempDefault } = useMemo(
     () => temperatureRange(baselineTm),
@@ -183,10 +192,13 @@ export function ThermalStructureCard({
       { value: tempMax, label: `${tempMax}°` },
     ];
     if (tmMark > tempMin && tmMark < tempMax) {
-      marks.splice(1, 0, { value: tmMark, label: `Tm ${tmMark}°` });
+      marks.splice(1, 0, {
+        value: tmMark,
+        label: tmIsPredicted ? `Tm ${tmMark}°` : `ref ${tmMark}°`,
+      });
     }
     return marks;
-  }, [tempMin, tempMax, tmMark]);
+  }, [tempMin, tempMax, tmMark, tmIsPredicted]);
 
   return (
     <Paper>
@@ -357,8 +369,10 @@ export function ThermalStructureCard({
                 Download PDB
               </Button>
               <Text size="xs" c="dimmed">
-                {fold.sequence_length} residues · {variant} · predicted Tm{" "}
-                {baselineTm.toFixed(1)}°C
+                {fold.sequence_length} residues · {variant} ·{" "}
+                {tmIsPredicted
+                  ? `predicted Tm ${baselineTm.toFixed(1)}°C`
+                  : `no Tm predicted — colours use a ${FALLBACK_BASELINE_TM}°C reference`}
               </Text>
             </Group>
           </Stack>

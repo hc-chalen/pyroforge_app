@@ -126,11 +126,27 @@ export function computeResidueThermalStates(
   });
 }
 
+/**
+ * Reference anchor for the colour ramp when no Tm has been predicted. The thermal
+ * view needs *some* anchor to render, but a value derived from this is NOT a
+ * prediction — callers must check {@link hasPredictedBaselineTm} before labelling it
+ * as one.
+ */
+export const FALLBACK_BASELINE_TM = 65;
+
 export function baselineMeltingTemperature(
   predictionTm?: number,
   optimizationBaselineTm?: number,
 ): number {
-  return optimizationBaselineTm ?? predictionTm ?? 65;
+  return optimizationBaselineTm ?? predictionTm ?? FALLBACK_BASELINE_TM;
+}
+
+/** True when the anchor came from a model, not from {@link FALLBACK_BASELINE_TM}. */
+export function hasPredictedBaselineTm(
+  predictionTm?: number | null,
+  optimizationBaselineTm?: number | null,
+): boolean {
+  return optimizationBaselineTm != null || predictionTm != null;
 }
 
 export function temperatureRange(baselineTm: number): {
