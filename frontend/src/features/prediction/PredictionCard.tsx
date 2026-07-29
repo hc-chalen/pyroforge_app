@@ -90,17 +90,11 @@ export function PredictionCard({
       const wtSequence = (
         optimization?.wild_type_sequence ?? sequence
       ).trim();
-
+      const mutations = optimization?.mutations ?? [];
       const result =
-        variant === "optimized"
-          ? await predict({ sequence: activeSequence })
-          : await predict({
-              sequence: wtSequence,
-              mutations:
-                (optimization?.mutations.length ?? 0) > 0
-                  ? optimization!.mutations
-                  : undefined,
-            });
+        variant === "optimized" && mutations.length > 0
+          ? await predict({ sequence: wtSequence, mutations })
+          : await predict({ sequence: activeSequence });
       setPrediction(analysisId, result, variant);
       setStatus(analysisId, "draft");
     } catch (err) {
