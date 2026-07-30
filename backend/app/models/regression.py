@@ -3,7 +3,14 @@ import torch.nn as nn
 
 AA_VOCAB = "ACDEFGHIKLMNPQRSTVWY"
 AA_TO_IDX = {aa: i for i, aa in enumerate(AA_VOCAB)}
+# Width of the mutation columns in the exported datasets (mutation_positions et al.
+# are (N, 10)); it is NOT a cap on how many mutations the optimizer may select —
+# OptimizeRequest.max_mutations governs that.
 MAX_MUTATIONS = 10
+# Longest sequence accepted for embedding. Previously written as MAX_MUTATIONS * 100,
+# which coupled a request limit to an unrelated dataset column width.
+MAX_SEQUENCE_LENGTH = 1000
+MIN_SEQUENCE_LENGTH = 10
 
 
 DEFAULT_DG_WIDTHS = [1024, 512, 256, 128]  # dG has ~500k labels → large tower

@@ -51,9 +51,13 @@ def optimize_sequence(
         perplexity_threshold=perplexity_threshold,
         progress_callback=progress,
     )
+    # Reuse the embeddings the optimizer already computed — these are the same two
+    # sequences, so re-embedding them would be two redundant 650M forward passes.
     structure_comparison = get_esm2_service().compare_embeddings(
         result.wild_type_sequence,
         result.optimized_sequence,
+        emb_a=result.wt_embedding,
+        emb_b=result.variant_embedding,
     )
     return {
         "wild_type_sequence": result.wild_type_sequence,
@@ -64,6 +68,7 @@ def optimize_sequence(
         ],
         "baseline_tm": result.baseline_tm,
         "ddg": result.ddg,
+        "ddg_ci95": result.ddg_ci95,
         "scan_summary": result.scan_summary,
         "structure_comparison": structure_comparison,
     }

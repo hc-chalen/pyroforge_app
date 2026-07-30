@@ -6,7 +6,11 @@ from threading import Lock
 import torch
 
 from app.core.config import settings
-from app.models.regression import AA_VOCAB, MAX_MUTATIONS
+from app.models.regression import (
+    AA_VOCAB,
+    MAX_SEQUENCE_LENGTH,
+    MIN_SEQUENCE_LENGTH,
+)
 
 STANDARD_AA = set("ACDEFGHIKLMNPQRSTVWY")
 logger = logging.getLogger(__name__)
@@ -65,11 +69,22 @@ class ESM2Service:
         return torch.stack(results)
 
     @torch.no_grad()
-    def compare_embeddings(self, sequence_a: str, sequence_b: str) -> dict:
-        """Compare ESM-2 mean-pooled embeddings for structural/sequence similarity."""
+    def compare_embeddings(
+        self,
+        sequence_a: str,
+        sequence_b: str,
+        emb_a: torch.Tensor | None = None,
+        emb_b: torch.Tensor | None = None,
+    ) -> dict:
+        """Compare ESM-2 mean-pooled embeddings for structural/sequence similarity.
+
+        ``emb_a``/``emb_b`` let a caller that has already embedded these exact
+        sequences skip the forward passes (the optimizer has both in hand).
+        """
         seq_a = self.validate_sequence(sequence_a)
         seq_b = self.validate_sequence(sequence_b)
-        emb_a, emb_b = self.batch_embed([seq_a, seq_b])
+        if emb_a is None or emb_b is None:
+            emb_a, emb_b = self.batch_embed([seq_a, seq_b])
 
         abs_diff = torch.abs(emb_a - emb_b)
         mean_abs_diff = float(abs_diff.mean().item())
@@ -147,18 +162,44 @@ class ESM2Service:
         invalid = set(seq) - STANDARD_AA
         if invalid:
             raise ValueError(f"Invalid amino acids: {sorted(invalid)}")
-        if len(seq) < 10:
-            raise ValueError("Sequence must be at least 10 residues")
-        if len(seq) > MAX_MUTATIONS * 100:
-            raise ValueError("Sequence too long")
+        if len(seq) < MIN_SEQUENCE_LENGTH:
+            raise ValueError(
+                f"Sequence must be at least {MIN_SEQUENCE_LENGTH} residues"
+            )
+        if len(seq) > MAX_SEQUENCE_LENGTH:
+            raise ValueError(
+                f"Sequence length {len(seq)} exceeds the {MAX_SEQUENCE_LENGTH}-residue limit"
+            )
         return seq
 
     @staticmethod
     def apply_mutations(sequence: str, mutations: list[tuple[int, str, str]]) -> str:
+        """Apply 0-indexed ``(position, source_aa, target_aa)`` substitutions.
+
+        ``source_aa`` is *checked*, not ignored: it is the only guard against a client
+        sending 1-indexed positions (the UI displays ``position + 1``), which would
+        otherwise silently mutate the wrong residue and return a confident, wrong
+        prediction. ``target_aa`` must be one of the 20 standard residues — anything
+        else becomes an ESM-2 ``<unk>`` token and yields a meaningless embedding.
+        """
         chars = list(sequence)
-        for pos, _src, tgt in mutations:
+        for pos, src, tgt in mutations:
             if pos < 0 or pos >= len(chars):
-                raise ValueError(f"Mutation position {pos} out of range")
+                raise ValueError(
+                    f"Mutation position {pos} out of range for a "
+                    f"{len(chars)}-residue sequence (positions are 0-indexed)"
+                )
+            if tgt not in STANDARD_AA:
+                raise ValueError(
+                    f"Invalid target amino acid {tgt!r} at position {pos}; "
+                    f"expected one of {AA_VOCAB}"
+                )
+            if src and src != chars[pos]:
+                raise ValueError(
+                    f"Mutation source mismatch at position {pos}: expected "
+                    f"{src!r} but the sequence has {chars[pos]!r}. Positions are "
+                    f"0-indexed — a 1-indexed position is the usual cause."
+                )
             chars[pos] = tgt
         return "".join(chars)
 
