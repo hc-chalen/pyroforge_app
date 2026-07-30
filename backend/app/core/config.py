@@ -32,20 +32,58 @@ class Settings(BaseSettings):
     max_mutations_default: int = 5
     celery_result_expires: int = 86400
 
+    # Significance gate for mutation selection. A candidate is only kept when its
+    # predicted ΔΔG exceeds this many standard deviations of model_ddg's own
+    # held-out residual, i.e. when the predicted gain is distinguishable from the
+    # model's noise. 0 reproduces the old behaviour (keep any ΔΔG > 0), which lets
+    # the optimizer "stabilize" a protein by selecting noise.
+    ddg_effect_size_sigma: float = 1.96
+    # Fallback ΔΔG threshold (kcal/mol) when the checkpoint carries no residual_std.
+    ddg_min_effect_fallback: float = 0.5
+
+    # Length regime the dG/ΔΔG models were actually trained on. Measured on
+    # esm2_train.pt: over the 513,689 dG-labelled rows, a lower-bound length proxy
+    # (highest mutated position + 1, since no sequence column is stored) has
+    # p50 = 60 and p95 = 72 residues — the Tsuboyama 2023 small-designed-domain
+    # regime. Outside it, absolute dG and ΔΔG are extrapolation and are reported as
+    # low confidence, mirroring the model_tm length gate.
+    dg_trusted_min_len: int = 10
+    dg_trusted_max_len: int = 72
+
+    # Hard ceiling for the site-saturation scan. The scan is O(L × 20) ESM-2 650M
+    # forward passes run serially, so a long sequence occupies the single worker
+    # slot for hours. Reject up front instead.
+    optimize_max_length: int = 400
+
+    # Celery task limits. The worker pool is single-slot ("solo"), so an unbounded
+    # task is a denial of service for every other user. Soft limit first so the task
+    # can report a real error; hard limit as the backstop.
+    task_soft_time_limit: int = 3600
+    task_time_limit: int = 3900
+
     cors_origins: list[str] = ["http://localhost:5173"]
     # Vite picks the next free port (5174, 5175, …) when 5173 is taken.
     cors_origin_regex: str = r"http://localhost:\d+"
 
     @property
     def resolved_device(self) -> str:
-        if self.device == "auto":
-            import torch
+        import torch
 
+        if self.device == "auto":
             if torch.cuda.is_available():
                 return "cuda"
             # Apple Silicon (M-series) GPU — much faster than CPU for ESM-2.
             if torch.backends.mps.is_available():
                 return "mps"
+            return "cpu"
+        # An explicitly-set device must still be honest about what's available:
+        # returning "cuda"/"mps" on a machine without it makes torch.load(
+        # map_location=...) raise "torch.cuda.is_available() is False" instead of
+        # loading the checkpoint. Degrade to CPU rather than crash — e.g. a stray
+        # DEVICE=cuda leaking into a CPU-only box (a teammate trying the repo).
+        if self.device == "cuda" and not torch.cuda.is_available():
+            return "cpu"
+        if self.device == "mps" and not torch.backends.mps.is_available():
             return "cpu"
         return self.device
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import torch
@@ -8,6 +9,8 @@ from app.core.config import settings
 from app.models.regression import DeltaMLP, ModelThermoDg
 from app.models.tm_regressor import MELTOME_TM_MAX_LEN, MELTOME_TM_MIN_LEN
 
+logger = logging.getLogger(__name__)
+
 
 class ModelStore:
     """Loads the production checkpoints.
@@ -15,14 +18,22 @@ class ModelStore:
     * ``model_thermo`` — absolute folding dG (its Tm head is retired; see below).
     * ``model_ddg``   — difference-embedding ΔΔG (the served mutation-effect
       signal). If ``model_ddg`` is missing, ΔΔG falls back to dG(mut)-dG(wt).
-    * ``model_tm`` (improved/model_tm.joblib) — the reliable absolute-Tm model
-      (Meltome-trained, r≈0.81). Serves absolute Tm for both wild-type and
-      mutant sequences (run directly on the mutant embedding).
+    * ``model_tm`` (improved/model_tm.joblib) — the absolute-Tm model, Meltome-trained.
+      Whatever recipe ``automl_tm`` promoted is what ships (currently an AutoML
+      stacking pipeline, ``recipe="automl:stack"``, not the original PCA+Ridge+GBM
+      ``TmRegressor``); read ``recipe`` and ``test_metrics`` from the checkpoint rather
+      than trusting a number in a docstring. Serves absolute Tm for both wild-type and
+      mutant sequences (run directly on the mutant embedding). Note its test split is
+      FLIP ``mixed_split`` with exact-sequence dedup only, so its metrics are
+      optimistic for novel proteins — see ``ingest_meltome.select``.
     """
 
     def __init__(self) -> None:
         self.device = settings.resolved_device
         self.norm_stats: dict | None = None
+        self.ddg_norm_stats: dict | None = None
+        self.norm_stats_match: bool | None = None
+        self._norm_cache: dict[tuple[int, str], tuple[torch.Tensor, torch.Tensor]] = {}
         self.model_thermo: ModelThermoDg | None = None
         self.thermo_calibration: dict | None = None
         self.thermo_residual_std: dict | None = None
@@ -67,6 +78,18 @@ class ModelStore:
             self.model_ddg.load_state_dict(ckpt_ddg["state_dict"])
             self.model_ddg.eval()
             self.ddg_residual_std = ckpt_ddg.get("residual_std")
+            # model_ddg was standardized with the stats from *its own* training split.
+            # Using model_thermo's instead silently shifts every ΔΔG feature the
+            # moment the two are trained on different data or seeds, with no error.
+            self.ddg_norm_stats = ckpt_ddg.get("norm_stats") or self.norm_stats
+            self.norm_stats_match = self._stats_match(self.norm_stats, self.ddg_norm_stats)
+            if not self.norm_stats_match:
+                logger.warning(
+                    "model_thermo and model_ddg carry different embedding norm stats "
+                    "(different training split, seed or data file). ΔΔG will use its "
+                    "own stats, as it must — but the two checkpoints are no longer a "
+                    "matched pair; retrain both from the same split."
+                )
 
         # Reliable absolute-Tm model (Meltome-trained). Optional: if absent,
         # absolute Tm is reported as "unavailable".
@@ -90,11 +113,51 @@ class ModelStore:
             )
         self._loaded = True
 
+    @staticmethod
+    def _stats_match(a: dict | None, b: dict | None) -> bool:
+        if a is None or b is None:
+            return a is b
+        for key in ("embedding_mean", "embedding_std"):
+            va, vb = a.get(key), b.get(key)
+            if va is None or vb is None or len(va) != len(vb):
+                return False
+            if not torch.allclose(
+                torch.tensor(va, dtype=torch.float64),
+                torch.tensor(vb, dtype=torch.float64),
+                atol=1e-6,
+            ):
+                return False
+        return True
+
+    def _tensors(self, stats: dict, device: torch.device | str) -> tuple[torch.Tensor, torch.Tensor]:
+        """Cached (mean, std) tensors — rebuilt from a 1280-element Python list on
+        every call otherwise, once per position of a saturation scan."""
+        key = (id(stats), str(device))
+        cached = self._norm_cache.get(key)
+        if cached is None:
+            cached = (
+                torch.tensor(stats["embedding_mean"], device=device),
+                torch.tensor(stats["embedding_std"], device=device),
+            )
+            self._norm_cache[key] = cached
+        return cached
+
     def normalize(self, embedding: torch.Tensor) -> torch.Tensor:
+        """Standardize with model_thermo's stats (the absolute-dG feature space)."""
         if self.norm_stats is None:
             raise RuntimeError("Models not loaded")
-        mean = torch.tensor(self.norm_stats["embedding_mean"], device=embedding.device)
-        std = torch.tensor(self.norm_stats["embedding_std"], device=embedding.device)
+        mean, std = self._tensors(self.norm_stats, embedding.device)
+        return (embedding - mean) / std
+
+    def normalize_ddg(self, embedding: torch.Tensor) -> torch.Tensor:
+        """Standardize with model_ddg's own stats (the ΔΔG feature space).
+
+        Falls back to model_thermo's stats only when the ΔΔG checkpoint stores none.
+        """
+        stats = self.ddg_norm_stats or self.norm_stats
+        if stats is None:
+            raise RuntimeError("Models not loaded")
+        mean, std = self._tensors(stats, embedding.device)
         return (embedding - mean) / std
 
 

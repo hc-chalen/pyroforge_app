@@ -1,12 +1,22 @@
 from typing import ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+_AA_PATTERN = r"^[ACDEFGHIKLMNPQRSTVWY]$"
 
 
 class MutationSchema(BaseModel):
     position: int = Field(..., ge=0, description="0-indexed residue position")
-    source_aa: str = Field(..., min_length=1, max_length=1)
-    target_aa: str = Field(..., min_length=1, max_length=1)
+    # Verified against the sequence server-side, not decorative: it is the guard
+    # against 1-indexed positions. Must be one of the 20 standard residues.
+    source_aa: str = Field(..., pattern=_AA_PATTERN)
+    target_aa: str = Field(..., pattern=_AA_PATTERN)
+
+    @field_validator("source_aa", "target_aa", mode="before")
+    @classmethod
+    def _upper(cls, v: object) -> object:
+        return v.upper() if isinstance(v, str) else v
 
 
 class PredictRequest(BaseModel):
@@ -40,6 +50,16 @@ class PredictResponse(BaseModel):
     tm_confidence_reason: str | None = Field(
         default=None, description="Why tm_confidence is not 'high'"
     )
+    dg_confidence: str | None = Field(
+        default=None,
+        description=(
+            "'high' when the sequence length is inside the small-domain regime the "
+            "dG/ΔΔG models were trained on, 'low' when both are extrapolated"
+        ),
+    )
+    dg_confidence_reason: str | None = Field(
+        default=None, description="Why dg_confidence is not 'high'"
+    )
 
     # Fields the prediction engine may emit. Kept in one place so the sync route and
     # the Celery task serialize the same payload.
@@ -52,6 +72,8 @@ class PredictResponse(BaseModel):
         "ddg_ci95",
         "tm_confidence",
         "tm_confidence_reason",
+        "dg_confidence",
+        "dg_confidence_reason",
     )
 
     @classmethod
@@ -84,9 +106,11 @@ class OptimizationResultResponse(BaseModel):
     wild_type_sequence: str
     optimized_sequence: str
     mutations: list[MutationResult]
-    baseline_tm: float
-    tm: float
+    # No variant `tm` is reported: model_tm barely moves for a handful of point
+    # mutations, so it would sit at ≈ baseline and be misread as a thermal shift.
+    baseline_tm: float | None = None
     ddg: float
+    ddg_ci95: float | None = None
     scan_summary: dict
 
 
@@ -124,10 +148,13 @@ class RegistrySearchRequest(BaseModel):
 class RegistryMatch(BaseModel):
     part_id: str
     identity: float
-    evalue: float
+    # None on the pairwise fallback path, which has no database model to compute an
+    # E-value from. Reporting 0.0 there would read as a perfect hit.
+    evalue: float | None = None
     bits: float
     description: str
     biobrick_url: str
+    search_method: str | None = None
 
 
 class RegistrySearchResponse(BaseModel):
@@ -236,8 +263,17 @@ class NasModelSummary(BaseModel):
     hyperparameters: NasHyperparameters
 
 
+class DdgRankingSummary(BaseModel):
+    pooled_pearson_r: float | None = None
+    pooled_mae: float | None = None
+    within_protein_median_spearman: float | None = None
+    within_protein_n_proteins: int | None = None
+    note: str | None = None
+
+
 class NasReportResponse(BaseModel):
     available: bool
+    ddg_ranking: DdgRankingSummary | None = None
     method: str | None = None
     design: str | None = None
     note: str | None = None

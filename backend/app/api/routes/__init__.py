@@ -21,10 +21,11 @@ from app.api.schemas import (
     TrainRequest,
     TrainResponse,
 )
-from app.services.esm2 import get_esm2_service
+from app.services.esm2 import ESM2Service, get_esm2_service
 from app.services.nas_report import load_nas_report
 from app.api.errors import format_task_error
 from app.core.celery_app import celery_app
+from app.core.config import settings
 from app.engines.prediction import Mutation
 from app.engines.registry import EngineRegistry, get_engine_registry
 from app.tasks.jobs import (
@@ -61,17 +62,41 @@ def predict(body: PredictRequest, reg: EngineRegistry = Depends(engines)) -> Pre
 
 @router.post("/predict/job", response_model=OptimizeResponse)
 def predict_job(body: PredictRequest) -> OptimizeResponse:
+    # Validated here, not in the worker, so bad input is a 400 rather than a job that
+    # is accepted and then fails.
+    try:
+        seq = ESM2Service.validate_sequence(body.sequence)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     mutations = None
     if body.mutations:
         mutations = [m.model_dump() for m in body.mutations]
-    task = predict_sequence.delay(body.sequence, mutations)
+    task = predict_sequence.delay(seq, mutations)
     return OptimizeResponse(job_id=task.id, status="pending")
 
 
 @router.post("/optimize", response_model=OptimizeResponse)
 def optimize(body: OptimizeRequest) -> OptimizeResponse:
+    # Validate before enqueueing: otherwise a bad sequence is only rejected inside
+    # the worker and surfaces as a failed job rather than a 400. The scan is also
+    # O(L × 20) serial ESM-2 passes, so an over-long sequence would hold the single
+    # worker slot for hours — reject it here.
+    try:
+        seq = ESM2Service.validate_sequence(body.sequence)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if len(seq) > settings.optimize_max_length:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Sequence length {len(seq)} exceeds the optimization limit "
+                f"({settings.optimize_max_length} residues). The site-saturation scan "
+                f"runs ~{len(seq) * 20} ESM-2 forward passes serially; shorten the "
+                f"sequence or raise OPTIMIZE_MAX_LENGTH."
+            ),
+        )
     task = optimize_sequence.delay(
-        body.sequence,
+        seq,
         body.max_mutations,
         body.perplexity_threshold,
     )
@@ -126,7 +151,12 @@ def heatmap(
 
 @router.post("/registry/search", response_model=OptimizeResponse)
 def registry(body: RegistrySearchRequest) -> OptimizeResponse:
-    task = registry_search.delay(body.sequence, body.max_hits)
+    # Validated up front so malformed input is a 400, not a failed background job.
+    try:
+        seq = ESM2Service.validate_sequence(body.sequence)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    task = registry_search.delay(seq, body.max_hits)
     return OptimizeResponse(job_id=task.id, status="pending")
 
 
