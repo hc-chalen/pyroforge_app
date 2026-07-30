@@ -70,14 +70,36 @@ interface AnalysisState {
   updateSequence: (id: string, sequence: string) => void;
   setStatus: (id: string, status: AnalysisStatus) => void;
   setError: (id: string, error: string | undefined) => void;
-  setPrediction: (id: string, prediction: PredictResponse, variant: SequenceVariant) => void;
+  // Each setter records the sequence the result was computed on, so a later edit to
+  // the input can be detected instead of silently invalidating the displayed numbers.
+  setPrediction: (
+    id: string,
+    prediction: PredictResponse,
+    variant: SequenceVariant,
+    sequence: string,
+  ) => void;
   setOptimization: (id: string, optimization: OptimizationResult) => void;
   setSequenceVariant: (id: string, variant: SequenceVariant) => void;
   setStructureComparison: (id: string, comparison: StructureComparison) => void;
-  setFold: (id: string, fold: FoldResult, variant: SequenceVariant) => void;
+  setFold: (
+    id: string,
+    fold: FoldResult,
+    variant: SequenceVariant,
+    sequence: string,
+  ) => void;
   setHeatmap: (id: string, heatmap: HeatmapResponse) => void;
-  setRegistry: (id: string, registry: RegistrySearchResponse, variant: SequenceVariant) => void;
-  setProcurement: (id: string, procurement: ProcureResponse, variant: SequenceVariant) => void;
+  setRegistry: (
+    id: string,
+    registry: RegistrySearchResponse,
+    variant: SequenceVariant,
+    sequence: string,
+  ) => void;
+  setProcurement: (
+    id: string,
+    procurement: ProcureResponse,
+    variant: SequenceVariant,
+    sequence: string,
+  ) => void;
   getSelected: () => Analysis | undefined;
 }
 
@@ -233,7 +255,7 @@ export const useAnalysisStore = create<AnalysisState>()(
           ),
         })),
 
-      setPrediction: (id, prediction, variant) =>
+      setPrediction: (id, prediction, variant, sequence) =>
         set((state) => ({
           analyses: state.analyses.map((a) => {
             if (a.id !== id) return a;
@@ -242,6 +264,7 @@ export const useAnalysisStore = create<AnalysisState>()(
               ...(vr[variant] ?? {}),
               prediction,
               predictionVariant: variant,
+              predictionSequence: sequence,
             };
             return { ...a, prediction, variantResults: vr, error: undefined };
           }),
@@ -277,7 +300,7 @@ export const useAnalysisStore = create<AnalysisState>()(
           ),
         })),
 
-      setFold: (id, fold, variant) => {
+      setFold: (id, fold, variant, sequence) => {
         if (fold.pdb) {
           setFoldPdb(id, fold.pdb, variant);
         }
@@ -289,6 +312,7 @@ export const useAnalysisStore = create<AnalysisState>()(
               ...(vr[variant] ?? {}),
               fold,
               foldVariant: variant,
+              foldSequence: sequence,
             };
             return { ...a, fold, variantResults: vr, error: undefined };
           }),
@@ -302,7 +326,7 @@ export const useAnalysisStore = create<AnalysisState>()(
           ),
         })),
 
-      setRegistry: (id, registry, variant) =>
+      setRegistry: (id, registry, variant, sequence) =>
         set((state) => ({
           analyses: state.analyses.map((a) => {
             if (a.id !== id) return a;
@@ -311,12 +335,13 @@ export const useAnalysisStore = create<AnalysisState>()(
               ...(vr[variant] ?? {}),
               registry,
               registryVariant: variant,
+              registrySequence: sequence,
             };
             return { ...a, registry, variantResults: vr, error: undefined };
           }),
         })),
 
-      setProcurement: (id, procurement, variant) =>
+      setProcurement: (id, procurement, variant, sequence) =>
         set((state) => ({
           analyses: state.analyses.map((a) => {
             if (a.id !== id) return a;
@@ -325,6 +350,7 @@ export const useAnalysisStore = create<AnalysisState>()(
               ...(vr[variant] ?? {}),
               procurement,
               procurementVariant: variant,
+              procurementSequence: sequence,
             };
             return {
               ...a,

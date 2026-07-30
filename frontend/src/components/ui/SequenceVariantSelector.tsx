@@ -48,13 +48,24 @@ export function SequenceVariantSelector({
 interface StaleVariantAlertProps {
   resultVariant?: SequenceVariant;
   activeVariant: SequenceVariant;
+  /** Why the result is stale. When omitted, only the variant mismatch is reported. */
+  staleReason?: "variant" | "sequence";
   onRerun?: () => void;
 }
 
 export function StaleVariantAlert({
   resultVariant,
   activeVariant,
+  staleReason,
 }: StaleVariantAlertProps) {
+  if (staleReason === "sequence") {
+    return (
+      <Alert color="yellow" title="Results are out of date">
+        The sequence has been edited since these results were computed, so they
+        describe the <Text span fw={600}>previous</Text> sequence. Re-run to refresh.
+      </Alert>
+    );
+  }
   if (!resultVariant || resultVariant === activeVariant) return null;
 
   return (

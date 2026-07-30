@@ -1,10 +1,29 @@
 import type { OptimizationResult, SequenceVariant } from "@/types/api";
 
+/**
+ * The "original" variant is the sequence currently in the input box.
+ *
+ * It previously preferred ``optimization.wild_type_sequence``, which meant that once
+ * an optimization existed, edits to the textarea were silently ignored by every tool
+ * — the UI showed the new sequence while the backend kept receiving the old one. The
+ * optimization's own wild type is now only a fallback for an empty input, and a
+ * mismatch between the two is surfaced via {@link isOptimizationStale}.
+ */
 export function getOriginalSequence(
   sequence: string,
   optimization?: OptimizationResult,
 ): string {
-  return (optimization?.wild_type_sequence ?? sequence).trim();
+  return (sequence.trim() || optimization?.wild_type_sequence || "").trim();
+}
+
+/** True when the input has been edited since this optimization was computed. */
+export function isOptimizationStale(
+  sequence: string,
+  optimization?: OptimizationResult,
+): boolean {
+  const wt = optimization?.wild_type_sequence?.trim();
+  const current = sequence.trim();
+  return Boolean(wt && current && wt !== current);
 }
 
 export function getOptimizedSequence(

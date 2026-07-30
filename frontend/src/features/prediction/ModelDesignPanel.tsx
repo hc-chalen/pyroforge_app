@@ -84,7 +84,8 @@ function WeightingPanel({ report }: { report: NasReportResponse }) {
               Optimizer decay: {prod.adamw_weight_decay ?? 0}
             </Badge>
             <Badge size="sm" variant="light" color="indigo">
-              Optimization: {prod.optimization_score?.formula ?? "-ΔΔG"}
+              {/* Fallback matches the current convention: higher ΔΔG = more stabilizing. */}
+              Optimization: {prod.optimization_score?.formula ?? "ΔΔG"}
             </Badge>
           </Group>
         </Stack>
@@ -217,9 +218,36 @@ export function ModelDesignPanel() {
                 ΔΔG
               </Text>{" "}
               (higher ΔΔG = more stabilizing = higher score), behind an ESM-2
-              residue-plausibility guardrail.
+              residue-plausibility guardrail and a significance gate at the ΔΔG
+              model's own noise floor.
             </List.Item>
           </List>
+          {nasReport?.ddg_ranking && (
+            <Stack gap={4} mt="sm">
+              <Text size="sm" fw={600}>
+                ΔΔG skill — magnitude vs ranking
+              </Text>
+              <Group gap={6}>
+                {nasReport.ddg_ranking.pooled_pearson_r != null && (
+                  <Badge size="sm" variant="light" color="teal">
+                    pooled r: {nasReport.ddg_ranking.pooled_pearson_r.toFixed(3)}
+                  </Badge>
+                )}
+                {nasReport.ddg_ranking.within_protein_median_spearman != null && (
+                  <Badge size="sm" variant="light" color="orange">
+                    within-protein ρ:{" "}
+                    {nasReport.ddg_ranking.within_protein_median_spearman.toFixed(3)}
+                    {nasReport.ddg_ranking.within_protein_n_proteins != null
+                      ? ` (${nasReport.ddg_ranking.within_protein_n_proteins} proteins)`
+                      : ""}
+                  </Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">
+                {nasReport.ddg_ranking.note}
+              </Text>
+            </Stack>
+          )}
         </Accordion.Panel>
       </Accordion.Item>
       {nasReport?.available && (

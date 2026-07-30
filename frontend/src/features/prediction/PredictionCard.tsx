@@ -105,7 +105,12 @@ export function PredictionCard({
         variant === "optimized" && mutations.length > 0
           ? await predict({ sequence: wtSequence, mutations })
           : await predict({ sequence: activeSequence });
-      setPrediction(analysisId, result, variant);
+      setPrediction(
+        analysisId,
+        result,
+        variant,
+        variant === "optimized" && mutations.length > 0 ? wtSequence : activeSequence,
+      );
       setStatus(analysisId, "draft");
     } catch (err) {
       const message =
@@ -173,6 +178,19 @@ export function PredictionCard({
                 <Text size="xs">
                   {displayPrediction.tm_confidence_reason ??
                     "This sequence is outside model_tm's training range — treat the absolute Tm as indicative only."}
+                </Text>
+              </Alert>
+            )}
+            {displayPrediction.dg_confidence === "low" && (
+              <Alert
+                color="orange"
+                variant="light"
+                title="ΔG and ΔΔG are extrapolated"
+                p="xs"
+              >
+                <Text size="xs">
+                  {displayPrediction.dg_confidence_reason ??
+                    "This sequence is longer than the small designed domains the ΔG/ΔΔG models were trained on — treat both as indicative only."}
                 </Text>
               </Alert>
             )}

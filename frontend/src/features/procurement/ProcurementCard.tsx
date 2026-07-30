@@ -46,11 +46,13 @@ export function ProcurementCard({
     sequence,
     optimization,
   );
-  const { data: procurement, resultVariant } = useVariantResult<ProcureResponse>(
-    analysisId,
-    variant,
-    "procurement",
-  );
+  const { data: procurement, resultVariant, staleReason } =
+    useVariantResult<ProcureResponse>(
+      analysisId,
+      variant,
+      "procurement",
+      activeSequence,
+    );
 
   async function handleRun() {
     if (!activeSequence) return;
@@ -63,7 +65,7 @@ export function ProcurementCard({
         protein_sequence: activeSequence,
         organism,
       });
-      setProcurement(analysisId, result, variant);
+      setProcurement(analysisId, result, variant, activeSequence);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Procurement quote failed";
@@ -102,6 +104,7 @@ export function ProcurementCard({
         <StaleVariantAlert
           resultVariant={resultVariant}
           activeVariant={variant}
+          staleReason={staleReason}
         />
         {displayError && (
           <Alert color="red" title="Error">

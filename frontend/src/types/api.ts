@@ -23,6 +23,21 @@ export interface PredictResponse {
   /** "low" when the sequence is outside model_tm's training length window. */
   tm_confidence?: TmConfidence | null;
   tm_confidence_reason?: string | null;
+  /** "low" when the sequence is outside the small-domain regime dG/ΔΔG were trained on. */
+  dg_confidence?: TmConfidence | null;
+  dg_confidence_reason?: string | null;
+}
+
+export interface ScanSummary {
+  total_candidates?: number;
+  selected_mutations?: number;
+  perplexity_threshold?: number;
+  /** ΔΔG a candidate must exceed to be distinguishable from model_ddg's noise. */
+  min_ddg_effect?: number;
+  effect_size_sigma?: number;
+  candidates_ddg_positive?: number;
+  candidates_above_noise?: number;
+  candidates_positive_but_within_noise?: number;
 }
 
 export interface OptimizeRequest {
@@ -74,19 +89,29 @@ export interface OptimizationResult {
   mutations: MutationResult[];
   baseline_tm: number | null;
   ddg: number;
-  scan_summary: Record<string, unknown>;
+  ddg_ci95?: number | null;
+  scan_summary: ScanSummary;
   structure_comparison?: StructureComparison;
 }
 
+/**
+ * Per-variant results. Each entry records both the variant it was computed for and
+ * the exact sequence it was computed on — without the sequence, editing the input
+ * leaves the old numbers on screen with no indication they no longer apply.
+ */
 export interface VariantResults {
   prediction?: PredictResponse;
   predictionVariant?: SequenceVariant;
+  predictionSequence?: string;
   fold?: FoldResult;
   foldVariant?: SequenceVariant;
+  foldSequence?: string;
   registry?: RegistrySearchResponse;
   registryVariant?: SequenceVariant;
+  registrySequence?: string;
   procurement?: ProcureResponse;
   procurementVariant?: SequenceVariant;
+  procurementSequence?: string;
 }
 
 export interface JobStatus {
@@ -145,10 +170,12 @@ export interface RegistrySearchRequest {
 export interface RegistryMatch {
   part_id: string;
   identity: number;
-  evalue: number;
+  /** null on the pairwise fallback path — no E-value is computable there. */
+  evalue: number | null;
   bits: number;
   description: string;
   biobrick_url: string;
+  search_method?: string | null;
 }
 
 export interface RegistrySearchResponse {
@@ -227,8 +254,18 @@ export interface NasModelSummary {
   hyperparameters: NasHyperparameters;
 }
 
+export interface DdgRankingSummary {
+  pooled_pearson_r?: number;
+  pooled_mae?: number;
+  /** The metric that matches how the optimizer uses model_ddg. */
+  within_protein_median_spearman?: number;
+  within_protein_n_proteins?: number;
+  note?: string;
+}
+
 export interface NasReportResponse {
   available: boolean;
+  ddg_ranking?: DdgRankingSummary | null;
   method?: string;
   design?: string;
   note?: string;

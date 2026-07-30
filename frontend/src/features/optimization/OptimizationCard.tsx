@@ -22,6 +22,7 @@ import { StructureCompareCard } from "@/features/optimization/StructureCompareCa
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { OptimizationResult } from "@/types/api";
+import { isOptimizationStale } from "@/utils/sequenceVariant";
 
 interface OptimizationCardProps {
   analysisId: string;
@@ -89,13 +90,42 @@ export function OptimizationCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Site-saturation scan ranked by ΔΔG (difference-embedding model), with
-          perplexity guardrail and greedy multi-mutant selection.
+          Site-saturation scan ranked by ΔΔG (difference-embedding model), with an
+          ESM-2 plausibility guardrail, a significance gate at the model's noise
+          floor, and greedy multi-mutant selection.
         </Text>
+        <Alert color="gray" variant="light" title="What ΔΔG does and doesn't say" p="xs">
+          <Text size="xs">
+            ΔΔG is a change in <strong>folding free energy</strong> (Tsuboyama
+            small-domain assay). Tm is a <strong>different measurement</strong>
+            {" "}(Meltome whole-protein assay), and the two are only weakly related —
+            corr(ΔG, Tm) is +0.24 row-level and +0.17 per-protein across the 21
+            proteins carrying both labels. Read a positive ΔΔG as “predicted more
+            resistant to unfolding”, <strong>not</strong> as a predicted Tm gain.
+            {(optimization?.mutations.length ?? 0) > 1 && (
+              <>
+                {" "}
+                The combined ΔΔG for a {optimization!.mutations.length}-mutation
+                variant is also an <strong>extrapolation</strong>: model_ddg was
+                trained on single substitutions, and selection assumes their effects
+                add without epistasis.
+              </>
+            )}
+          </Text>
+        </Alert>
         {!modelsReady && !healthLoading && (
           <Alert color="orange" title="Models not ready">
             Optimization will ask the backend to load checkpoints. If checkpoint
             files are missing, the backend will return an error.
+          </Alert>
+        )}
+        {isOptimizationStale(sequence, optimization) && (
+          <Alert color="yellow" title="Optimization is out of date">
+            <Text size="xs">
+              The input sequence has been edited since this scan ran, so these
+              mutations and their positions refer to the previous sequence. Re-run the
+              optimization.
+            </Text>
           </Alert>
         )}
         {loading && (
@@ -125,13 +155,48 @@ export function OptimizationCard({
                 <MetricLabel
                   label="ΔΔG (kcal/mol)"
                   method="derived"
-                  tooltip="Total ΔΔG of the selected mutations from difference-embedding model_ddg. Positive = stabilizing → predicted more thermostable. This is the optimization objective."
+                  tooltip="Total ΔΔG of the selected mutations from difference-embedding model_ddg. Positive = predicted more resistant to unfolding. This is the optimization objective — it is a folding-stability change, not a predicted Tm shift."
                 />
                 <Text fw={700} size="lg" ff="monospace">
                   {optimization.ddg != null ? optimization.ddg.toFixed(2) : "—"}
                 </Text>
+                {optimization.ddg_ci95 != null && (
+                  <Text size="xs" c="dimmed" ff="monospace">
+                    ± {optimization.ddg_ci95.toFixed(2)} kcal/mol (95%)
+                  </Text>
+                )}
               </StatPaper>
             </SimpleGrid>
+            {optimization.mutations.length === 0 ? (
+              <Alert color="blue" variant="light" title="No mutation cleared the noise floor">
+                <Text size="xs">
+                  The scan found{" "}
+                  {optimization.scan_summary?.candidates_ddg_positive ?? 0} candidates
+                  with ΔΔG &gt; 0, but none exceeded{" "}
+                  {optimization.scan_summary?.min_ddg_effect != null
+                    ? `${optimization.scan_summary.min_ddg_effect.toFixed(2)} kcal/mol`
+                    : "the significance threshold"}{" "}
+                  ({optimization.scan_summary?.effect_size_sigma ?? 1.96}σ of the ΔΔG
+                  model's own error), so their predicted gain is not distinguishable
+                  from model noise. The wild type is returned unchanged — this is a
+                  result, not a failure.
+                </Text>
+              </Alert>
+            ) : (
+              optimization.scan_summary?.candidates_positive_but_within_noise != null &&
+              optimization.scan_summary.candidates_positive_but_within_noise > 0 && (
+                <Text size="xs" c="dimmed">
+                  {optimization.scan_summary.candidates_positive_but_within_noise} further
+                  candidate
+                  {optimization.scan_summary.candidates_positive_but_within_noise === 1
+                    ? ""
+                    : "s"}{" "}
+                  had ΔΔG &gt; 0 but fell inside the model's ±
+                  {optimization.scan_summary.min_ddg_effect?.toFixed(2)} kcal/mol noise
+                  band and were rejected.
+                </Text>
+              )
+            )}
             <Text size="xs" c="dimmed" ff="monospace" lineClamp={2}>
               {optimization.optimized_sequence}
             </Text>

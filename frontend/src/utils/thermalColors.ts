@@ -62,7 +62,15 @@ export function vulnerabilityByPosition(
   return result;
 }
 
-/** Per-residue melt onset (°C). Labile sites melt up to ~45% below global Tm. */
+/**
+ * Heuristic per-residue melt onset (°C) for the colour ramp only.
+ *
+ * **This is not a prediction.** No model in PyroForge predicts a per-residue melting
+ * temperature. It is an illustrative interpolation — a labile site is shown as melting
+ * up to 45% below the whole-protein Tm — driven by pLDDT-derived vulnerability, which
+ * is a structure-confidence score rather than a thermodynamic quantity. Present it as
+ * a relative ordering of fragile regions, never as a measured or predicted °C.
+ */
 export function localMeltTemperature(
   baselineTm: number,
   vulnerability: number,

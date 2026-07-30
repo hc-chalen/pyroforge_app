@@ -67,10 +67,11 @@ export function ThermalStructureCard({
     sequence,
     optimization,
   );
-  const { data: fold, resultVariant } = useVariantResult<FoldResult>(
+  const { data: fold, resultVariant, staleReason } = useVariantResult<FoldResult>(
     analysisId,
     variant,
     "fold",
+    activeSequence,
   );
 
   const pdbText = useMemo(() => {
@@ -173,7 +174,7 @@ export function ThermalStructureCard({
       if (result.pdb) {
         setFoldPdb(analysisId, result.pdb, variant);
       }
-      setFold(analysisId, result, variant);
+      setFold(analysisId, result, variant, activeSequence);
       setStatus(analysisId, "draft");
     } catch (err) {
       const message =
@@ -215,7 +216,10 @@ export function ThermalStructureCard({
         <Text size="sm" c="dimmed">
           Folded structure with per-residue thermal vulnerability. Raise the
           temperature to see labile regions shift from cool blue to hot red.
-          ESMFold supports sequences of 10–400 residues.
+          ESMFold supports sequences of 10–400 residues. Vulnerability is derived from
+          pLDDT (a structure-confidence score, used here as a flexibility proxy), so
+          read the colours as a relative ordering of fragile regions — the per-residue
+          melt onsets are illustrative, not predicted temperatures.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -228,6 +232,7 @@ export function ThermalStructureCard({
         <StaleVariantAlert
           resultVariant={resultVariant}
           activeVariant={variant}
+          staleReason={staleReason}
         />
         {activeSequence.length > 400 && (
           <Alert color="orange" title="Sequence too long">
@@ -339,7 +344,7 @@ export function ThermalStructureCard({
                 {thermalResidues.map((r) => (
                   <div
                     key={r.position}
-                    title={`${r.aa}${r.position}: melts ~${r.meltOnset.toFixed(0)}°C · vulnerability ${(r.vulnerability * 100).toFixed(0)}%`}
+                    title={`${r.aa}${r.position}: vulnerability ${(r.vulnerability * 100).toFixed(0)}% · heuristic melt onset ~${r.meltOnset.toFixed(0)}°C (illustrative, not a predicted Tm)`}
                     style={{
                       width: 18,
                       height: 18,

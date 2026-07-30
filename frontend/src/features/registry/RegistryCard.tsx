@@ -47,11 +47,13 @@ export function RegistryCard({
     sequence,
     optimization,
   );
-  const { data: registry, resultVariant } = useVariantResult<RegistrySearchResponse>(
-    analysisId,
-    variant,
-    "registry",
-  );
+  const { data: registry, resultVariant, staleReason } =
+    useVariantResult<RegistrySearchResponse>(
+      analysisId,
+      variant,
+      "registry",
+      activeSequence,
+    );
 
   async function handleRun() {
     if (!activeSequence) return;
@@ -64,7 +66,12 @@ export function RegistryCard({
         max_hits: maxHits,
       });
       const job = await runJob(job_id, "Registry search");
-      setRegistry(analysisId, job.result as RegistrySearchResponse, variant);
+      setRegistry(
+        analysisId,
+        job.result as RegistrySearchResponse,
+        variant,
+        activeSequence,
+      );
       setStatus(analysisId, "draft");
     } catch (err) {
       const message =
@@ -102,6 +109,7 @@ export function RegistryCard({
         <StaleVariantAlert
           resultVariant={resultVariant}
           activeVariant={variant}
+          staleReason={staleReason}
         />
         {loading && (
           <Progress value={progress * 100} animated striped size="sm" />
