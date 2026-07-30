@@ -86,8 +86,16 @@ def build_parent_split(data: dict, seed: int = 42, val_fraction: float = 0.1) ->
     parent in validation, badly inflating the score.
     """
     if PARENT_KEY not in data:
-        raise KeyError(
-            f"{PARENT_KEY!r} missing from dataset; cannot build a parent-group split."
+        # esm2_50k.pt ships without this column, so it cannot be used for training at
+        # all — a random row split would leak parents across train/val and inflate
+        # every metric. Fail with an actionable message rather than a bare KeyError:
+        # this surfaces through /admin/train, whose Docker default points here.
+        raise ValueError(
+            f"Training dataset is missing the {PARENT_KEY!r} column, so a "
+            f"leakage-free parent-group split cannot be built. Available columns: "
+            f"{sorted(k for k, v in data.items() if hasattr(v, 'shape'))}. Point "
+            f"DATA_PATH at a dataset that carries {PARENT_KEY!r} (esm2_train.pt); "
+            f"the esm2_50k.pt subset does not."
         )
     n = data["embeddings"].shape[0]
     indices = np.arange(n)

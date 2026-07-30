@@ -111,11 +111,23 @@ class CodonOptimizer:
         return round(math.exp(log_sum), 4)
 
     @staticmethod
-    def _has_hairpin(dna: str, window: int = 20) -> bool:
+    def _has_hairpin(dna: str, stem: int = 8, max_loop: int = 12) -> bool:
+        """Detect a self-complementary stem that could form a hairpin.
+
+        The previous implementation searched for a ``window//2``-long reverse
+        complement inside a slice of exactly ``window//2`` characters, so ``in``
+        degenerated into an equality test: it only matched a perfect 10 bp stem with a
+        zero-length loop, and never fired on real sequences. This scans for a
+        ``stem``-length reverse complement anywhere within ``max_loop`` bases
+        downstream, which is what a hairpin actually is.
+        """
         complement = str.maketrans("ACGT", "TGCA")
-        for i in range(len(dna) - window):
-            segment = dna[i : i + window // 2]
+        for i in range(len(dna) - stem):
+            segment = dna[i : i + stem]
+            if len(segment) < stem:
+                break
             rev_comp = segment.translate(complement)[::-1]
-            if rev_comp in dna[i + window // 2 : i + window]:
+            search_from = i + stem
+            if rev_comp in dna[search_from : search_from + max_loop + stem]:
                 return True
         return False

@@ -10,11 +10,13 @@ a disciplined AutoML pass rather than adding capacity:
      SVR(RBF), kNN, HistGradientBoosting — each grid-tuned inside a
      StandardScaler → PCA pipeline (PCA components are part of the search).
   2. A stacking ensemble of the tuned base families.
-  3. Refit the CV winner on all train rows and score it on the held-out Meltome
-     **test** split, head-to-head with the current TmRegressor baseline.
-  4. Save the AutoML model + a comparison report/plots. It is promoted to the
-     served ``model_tm.joblib`` only if it beats the baseline test MAE (or with
-     ``--force-promote``); the previous checkpoint is backed up first.
+  3. Refit the CV winner on all train rows.
+  4. Save the AutoML model + a comparison report/plots. It is promoted to the served
+     ``model_tm.joblib`` only if its **cross-validated train MAE** beats the
+     baseline's (or with ``--force-promote``); the previous checkpoint is backed up
+     first. The held-out test split is scored for the record but is deliberately NOT
+     part of the promotion decision — gating on it would make the reported test
+     metrics a selection signal rather than an unbiased estimate of the served model.
 
 Run:  uv run pyroforge-automl-tm
 """
@@ -144,8 +146,11 @@ def run_automl_tm(
     # Baseline: current served recipe (hand-picked HPs), same train/test.
     baseline = TmRegressor().fit(Xtr, ytr)
     baseline_test = _metrics(baseline.predict(Xte), yte)
-    logger.info("baseline (PCA100+Ridge+GBM)  test MAE=%.3f r=%.3f",
-                baseline_test["mae"], baseline_test["pearson"])
+    # Baseline CV MAE on the *training* rows — this, not the test score, is what the
+    # promotion decision compares against (see `beats` below).
+    baseline_cv_mae = _cv_mae(TmRegressor(), Xtr, ytr, cv)
+    logger.info("baseline (PCA100+Ridge+GBM)  CV MAE=%.3f | test MAE=%.3f r=%.3f",
+                baseline_cv_mae, baseline_test["mae"], baseline_test["pearson"])
 
     # 1) tune each family
     logger.info("searching estimator families (%d-fold CV) ...", cv_folds)
@@ -179,15 +184,22 @@ def run_automl_tm(
     logger.info("AutoML winner (%s)  test MAE=%.3f r=%.3f", winner,
                 automl_test["mae"], automl_test["pearson"])
 
-    beats = automl_test["mae"] < baseline_test["mae"]
+    # Promote on cross-validated *training* error, never on the test score. Gating on
+    # test turns the held-out split into a model-selection signal, so the reported
+    # test metrics stop being an unbiased estimate of the served model.
+    beats = candidates[winner] < baseline_cv_mae
     report = {
         "winner": winner,
         "cv_folds": cv_folds,
         "cv_mae_by_candidate": candidates,
         "family_best_params": {n: f["best_params"] for n, f in families.items()},
+        "selection_metric": "cv_mae_on_train",
+        "baseline_cv_mae": baseline_cv_mae,
+        "automl_cv_mae": candidates[winner],
         "baseline_test": baseline_test,
         "automl_test": automl_test,
-        "beats_baseline_mae": bool(beats),
+        "beats_baseline_cv_mae": bool(beats),
+        "test_used_for_selection": False,
         "n_train": int(tr.sum()),
     }
 

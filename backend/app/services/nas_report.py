@@ -108,6 +108,36 @@ _PRODUCTION_WEIGHTING = {
 }
 
 
+def _ddg_ranking(checkpoint_dir: Path) -> dict | None:
+    """Within-protein ΔΔG ranking skill from ``ddg_training_report.json``.
+
+    The pooled Pearson r says how well ΔΔG magnitudes track truth *across* proteins.
+    The optimizer never does that — it ranks mutations *inside one* protein, which is
+    what ``train_ddg.within_protein`` measures. Surfacing only the pooled r overstates
+    the signal the scan actually relies on, so report both.
+    """
+    path = checkpoint_dir / "ddg_training_report.json"
+    if not path.is_file():
+        return None
+    with open(path) as f:
+        raw = json.load(f)
+    m = (raw.get("model_ddg") or {}).get("test_metrics") or {}
+    wp = m.get("within_protein") or {}
+    if not m:
+        return None
+    return {
+        "pooled_pearson_r": m.get("pearson_r"),
+        "pooled_mae": m.get("mae"),
+        "within_protein_median_spearman": wp.get("median_spearman"),
+        "within_protein_n_proteins": wp.get("n_proteins"),
+        "note": (
+            "within-protein median Spearman is the metric that matches how the "
+            "optimizer uses the model (ranking mutations inside one protein); the "
+            "pooled r is across proteins and is the more flattering number"
+        ),
+    }
+
+
 def load_nas_report(checkpoint_dir: Path | None = None) -> dict | None:
     checkpoint_dir = checkpoint_dir or settings.checkpoint_dir
     report_path = checkpoint_dir / "autopytorch" / "autopytorch_report.json"
@@ -138,6 +168,7 @@ def load_nas_report(checkpoint_dir: Path | None = None) -> dict | None:
             comparison = json.load(f)
 
     return {
+        "ddg_ranking": _ddg_ranking(checkpoint_dir),
         "available": bool(models),
         "method": raw.get("method"),
         "design": raw.get("design"),

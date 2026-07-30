@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -21,11 +22,12 @@ class MMseqsService:
         return shutil.which(self.mmseqs_bin) is not None
 
     def ensure_database(self) -> None:
+        # No _create_db call: `search` runs `mmseqs easy-search` against the FASTA
+        # directly and never reads db_path, so building the DB was pure wasted work
+        # on first request. Restore it only if search switches to `mmseqs search`.
         self.fasta_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.fasta_path.exists():
             self._bootstrap_fasta()
-        if self._mmseqs_available() and not (self.db_path.parent / f"{self.db_path.name}.dbtype").exists():
-            self._create_db()
 
     def _bootstrap_fasta(self) -> None:
         """Fetch a representative set of iGEM protein parts."""
@@ -36,18 +38,8 @@ class MMseqsService:
             (">BBa_I746001 RFP", "MSELIKENMHMKLYMEGTVNNYFFSPMIYFAFLLFYGVTLYFLYGQYRFRKKMPSIEFDDSLAGEILELSLQIDDMIPAFLLSKVYTQHQRVSFFEFMNFLVHLSVCQSCGFEITVFECYFALCYRFLVSHYKVYLRCKKYLVCESCMEDVCKIEQQLMREVE"),
         ]
         self.fasta_path.write_text("\n".join(f"{h}\n{s}" for h, s in seed_parts) + "\n")
-
-        # Attempt to enrich from iGEM registry export
-        try:
-            with httpx.Client(timeout=30.0) as client:
-                resp = client.get(
-                    f"{settings.igem_api_base}/xml/part.cgi",
-                    params={"part": "BBa_K176000"},
-                )
-                if resp.status_code == 200 and "protein" in resp.text.lower():
-                    pass  # seed file sufficient for bootstrap
-        except httpx.HTTPError:
-            pass
+        # (An iGEM enrichment request used to run here and discard its response; it
+        # was removed rather than left as a no-op network call on first request.)
 
     def _create_db(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,18 +65,48 @@ class MMseqsService:
             entries.append((header, "".join(seq_parts)))
         return entries
 
+    # Below this alignment identity a fallback hit is not evidence of homology, so it
+    # is not reported at all. With affine gap penalties an unrelated pair still scores
+    # ~15-25%, which is noise, not a match.
+    FALLBACK_MIN_IDENTITY = 30.0
+
     def _fallback_search(self, sequence: str, max_hits: int) -> list[dict]:
+        """Pairwise-alignment fallback used when the mmseqs2 binary is unavailable.
+
+        Uses BLOSUM62 with affine gap penalties. The previous version used the
+        PairwiseAligner defaults (match 1, mismatch 0, **no gap penalty**), which makes
+        the global score essentially a longest-common-subsequence length and inflates
+        "identity" for completely unrelated sequences. It also reported
+        ``evalue: 0.0`` — the strongest possible E-value — on every hit. There is no
+        E-value here at all, so it is now reported as ``None``.
+        """
+        from Bio.Align import substitution_matrices
+
         aligner = PairwiseAligner()
         aligner.mode = "global"
+        aligner.substitution_matrix = substitution_matrices.load("BLOSUM62")
+        aligner.open_gap_score = -11
+        aligner.extend_gap_score = -1
+
         hits: list[dict] = []
         for part_id, target_seq in self._parse_fasta():
-            score = aligner.score(sequence, target_seq)
-            identity = (score / max(len(sequence), len(target_seq))) * 100
+            alignment = next(iter(aligner.align(sequence, target_seq)), None)
+            if alignment is None:
+                continue
+            a, b = alignment[0], alignment[1]
+            aligned = sum(1 for x, y in zip(a, b) if x != "-" and y != "-")
+            matches = sum(1 for x, y in zip(a, b) if x == y and x != "-")
+            identity = (matches / aligned * 100) if aligned else 0.0
+            if identity < self.FALLBACK_MIN_IDENTITY:
+                continue
             hits.append({
                 "part_id": part_id,
                 "identity": round(identity, 2),
-                "evalue": 0.0,
-                "bits": float(score),
+                # No E-value is computable from a pairwise alignment without a
+                # database model; 0.0 would read as a perfect hit.
+                "evalue": None,
+                "bits": float(alignment.score),
+                "search_method": "pairwise_blosum62_fallback",
             })
         hits.sort(key=lambda h: h["bits"], reverse=True)
         return hits[:max_hits]
@@ -170,8 +192,16 @@ class RegistryEngine:
     def search(self, sequence: str, max_hits: int = 10) -> dict:
         seq = sequence.strip().upper()
         raw_hits = self.mmseqs.search(seq, max_hits=max_hits)
-        matches = []
-        for hit in raw_hits:
-            meta = self.igem.fetch_part_metadata(hit["part_id"])
-            matches.append({**hit, **meta})
+        # Fetch part metadata concurrently. Serially this was up to max_hits × 15 s of
+        # blocking HTTP (150 s at the default) inside the single-slot Celery worker,
+        # holding up every other user's job.
+        matches: list[dict] = []
+        if raw_hits:
+            with ThreadPoolExecutor(max_workers=min(8, len(raw_hits))) as pool:
+                metas = list(
+                    pool.map(
+                        lambda h: self.igem.fetch_part_metadata(h["part_id"]), raw_hits
+                    )
+                )
+            matches = [{**hit, **meta} for hit, meta in zip(raw_hits, metas)]
         return {"matches": matches, "query_length": len(seq)}

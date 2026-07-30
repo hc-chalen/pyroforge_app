@@ -22,35 +22,53 @@ import numpy as np
 import torch
 
 from app.core.config import settings
-from app.data.dataset import build_parent_split, load_raw_data
+from app.data.dataset import PARENT_KEY, build_parent_split, load_raw_data
 from app.training.thermo_multitask import train_model_thermo
 
 
 @torch.no_grad()
-def _fit_thermo_calibration(model, data, split, device) -> dict:
-    """Val-set linear recalibration (slope, intercept) for the dG head.
+def _fit_thermo_calibration(model, data, split, device, seed: int = 42) -> tuple[dict, dict]:
+    """Linear recalibration (slope, intercept) for the dG head, plus residual σ.
 
     Correlation-based epoch selection leaves a systematic scale/offset on the
-    absolute dG prediction; a linear fit on the held-out validation rows removes
-    it, lowering MAE without changing correlation. Applied at inference.
+    absolute dG prediction; a linear fit removes it, lowering MAE without changing
+    correlation. Applied at inference.
+
+    The validation rows are split in half **by parent protein**: the calibration is
+    fit on one half and the residual σ measured on the other. Fitting and scoring on
+    the same rows (which were also used for epoch selection) makes the σ optimistic,
+    and that σ is what becomes the served ±95% band on ΔG.
     """
     mean = split.embedding_mean
     std = split.embedding_std
-    emb = ((data["embeddings"][split.val_idx].numpy() - mean) / std).astype("float32")
+    val_idx = split.val_idx
+    emb = ((data["embeddings"][val_idx].numpy() - mean) / std).astype("float32")
     dg_p = np.empty(len(emb), dtype="float32")
     model.eval()
     for s in range(0, len(emb), 8192):
         e = min(s + 8192, len(emb))
         g = model(torch.tensor(emb[s:e], device=device))
         dg_p[s:e] = g.cpu().numpy()
+
+    # Halve the validation parents so calibration and residual use disjoint rows.
+    parents = data[PARENT_KEY].numpy()[val_idx]
+    uniq = np.unique(parents)
+    rng = np.random.default_rng(seed)
+    fit_parents = set(rng.permutation(uniq)[: max(1, len(uniq) // 2)].tolist())
+    fit_mask = np.array([p in fit_parents for p in parents])
+    hold_mask = ~fit_mask
+    if hold_mask.sum() < 3:  # too few parents to hold out — fall back to in-sample
+        fit_mask = hold_mask = np.ones(len(parents), dtype=bool)
+
     cal, resid = {}, {}
     for col, pred in (("dg", dg_p),):
-        y = data[col].numpy()[split.val_idx]
+        y = data[col].numpy()[val_idx]
         ok = ~np.isnan(y)
-        if ok.sum() > 2:
-            slope, intercept = np.polyfit(pred[ok], y[ok], 1)
+        f, h = ok & fit_mask, ok & hold_mask
+        if f.sum() > 2 and h.sum() > 2:
+            slope, intercept = np.polyfit(pred[f], y[f], 1)
             cal[col] = {"slope": float(slope), "intercept": float(intercept)}
-            resid[col] = float(np.std((slope * pred[ok] + intercept) - y[ok]))
+            resid[col] = float(np.std((slope * pred[h] + intercept) - y[h]))
     return cal, resid
 
 
@@ -116,7 +134,9 @@ def run_training(
     thermo_config["architecture_source"] = "autopytorch_nas" if use_nas else "default"
     if nas_source is not None:
         thermo_config["nas_config"] = nas_source
-    thermo_calibration, thermo_residual_std = _fit_thermo_calibration(model_thermo, data, split, device)
+    thermo_calibration, thermo_residual_std = _fit_thermo_calibration(
+        model_thermo, data, split, device, seed=seed
+    )
 
     norm_stats = {
         "embedding_mean": split.embedding_mean.tolist(),

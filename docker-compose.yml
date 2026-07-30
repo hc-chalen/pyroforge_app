@@ -38,7 +38,12 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
-      DATA_PATH: /data/esm2_50k.pt
+      # Training data path. NOTE: esm2_50k.pt has no `parent_protein_ids`
+      # column, so POST /api/v1/admin/train cannot build a leakage-free
+      # parent-group split from it and will fail with a clear error. Mount
+      # esm2_train.pt and point DATA_PATH at it to retrain in Docker; serving
+      # only needs the checkpoints, not this file.
+      DATA_PATH: ${DATA_PATH:-/data/esm2_50k.pt}
       CHECKPOINT_DIR: /app/checkpoints
       # CPU by default (correct on any host; required on Apple Silicon — ESM-2 is
       # degenerate on MPS). Set DEVICE=cuda on a GPU host, ideally with the
@@ -72,7 +77,12 @@ services:
     command: uv run celery -A app.core.celery_app worker --loglevel=info --pool=solo --concurrency=1
     environment:
       REDIS_URL: redis://redis:6379/0
-      DATA_PATH: /data/esm2_50k.pt
+      # Training data path. NOTE: esm2_50k.pt has no `parent_protein_ids`
+      # column, so POST /api/v1/admin/train cannot build a leakage-free
+      # parent-group split from it and will fail with a clear error. Mount
+      # esm2_train.pt and point DATA_PATH at it to retrain in Docker; serving
+      # only needs the checkpoints, not this file.
+      DATA_PATH: ${DATA_PATH:-/data/esm2_50k.pt}
       CHECKPOINT_DIR: /app/checkpoints
       DEVICE: ${DEVICE:-cpu}
       TORCH_HOME: /app/cache/torch

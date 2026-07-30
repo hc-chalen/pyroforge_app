@@ -82,7 +82,9 @@ pyroforge/
 ├── frontend/                # React + TypeScript + Vite web client
 ├── docker-compose.yml       # runs the whole stack with one command
 ├── esm2_train.pt            # training data (embeddings + labels, ~2.7 GB)
-├── esm2_50k.pt              # smaller training subset (~250 MB, used by Docker)
+├── esm2_50k.pt              # smaller subset (~250 MB); Docker's default DATA_PATH,
+│                            # but it lacks `parent_protein_ids`, so it CANNOT be
+│                            # used for training — retraining needs esm2_train.pt
 └── esm2_test.pt             # held-out test data (~110 MB, for evaluation)
 ```
 

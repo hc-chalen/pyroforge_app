@@ -82,7 +82,18 @@ def parse_fasta(path: Path) -> list[tuple[str, float, str]]:
 
 
 def select(records, min_len=20, max_len=400, max_proteins=4000, seed=42):
-    """Filter by length/AA, de-duplicate by sequence, cap protein count."""
+    """Filter by length/AA, de-duplicate by sequence, cap protein count.
+
+    .. warning::
+       De-duplication is by **exact sequence only**, and the split comes from FLIP's
+       ``mixed_split``. Homologous (non-identical) sequences can therefore appear on
+       both sides of the train/test boundary, so the resulting Meltome test metrics
+       (r ≈ 0.83 / MAE ≈ 5.4 °C) are an optimistic estimate of generalization to
+       genuinely novel proteins — and the served ±95% Tm band derived from them is
+       correspondingly too narrow. A clustered split (e.g. MMseqs2 at 30% identity,
+       whole clusters held out) is required before those numbers can be cited as
+       novel-protein performance.
+    """
     seen: set[str] = set()
     kept: list[tuple[str, float, str]] = []
     for seq, tm, split in records:
@@ -130,7 +141,9 @@ def build_and_cache(out_path: Path, max_proteins: int, max_len: int, batch_size:
     logger.info("embedding %d proteins (max_len=%d) ...", len(seqs), max_len)
     emb = embed_sequences(seqs, batch_size=batch_size)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(out_path, emb=emb, tm=tm, split=split, source=np.full(len(tm), "meltome"))
+    np.savez(out_path, emb=emb, tm=tm, split=split, source=np.full(len(tm), "meltome"),
+             # Recorded so downstream reports can state the caveat in ``select``.
+             split_method=np.array("flip_mixed_split:exact_sequence_dedup_only"))
     logger.info("cached %d meltome proteins -> %s", len(tm), out_path)
     return {"n": len(tm), "n_test": int((split == "test").sum()), "path": str(out_path)}
 

@@ -74,6 +74,18 @@ def _train_tower(label, widths, data, split, device, epochs, bs, lr, wd, dropout
     return best_state, history, best_r
 
 
+@torch.no_grad()
+def _ensemble_val_metrics(model, data, split, device, bs) -> dict[str, float]:
+    """Validation metrics of the averaged ensemble (not of its members)."""
+    model.eval()
+    va = _single_task_loader(data, split.val_idx, "dg", split.embedding_mean,
+                             split.embedding_std, bs, False)
+    P, T = [], []
+    for xb, yb in va:
+        P.extend(model(xb.to(device)).cpu().numpy()); T.extend(yb.numpy())
+    return metrics(np.array(P), np.array(T))
+
+
 def train_model_thermo(
     data: dict,
     split,
@@ -97,10 +109,13 @@ def train_model_thermo(
     dg_widths = dg_widths or DEFAULT_DG_WIDTHS
 
     # dG ensemble: n_dg large towers with different seeds, averaged at inference.
+    # ``patience`` must be < epochs or the early-stop branch is unreachable
+    # (``ep - best_ep >= epochs`` cannot hold within ``epochs`` iterations).
+    patience = max(3, epochs // 5)
     dg_states, dg_rs = [], []
     for s in range(n_dg):
         sd, _, r = _train_tower("dg", dg_widths, data, split, device, epochs, batch_size,
-                                lr, weight_decay, dropout, patience=epochs, seed=s)
+                                lr, weight_decay, dropout, patience=patience, seed=s)
         dg_states.append(sd); dg_rs.append(r)
 
     model = ModelThermoDg(dg_widths=dg_widths, dropout=dropout, n_dg=n_dg).to(device)
@@ -108,8 +123,14 @@ def train_model_thermo(
         tower.load_state_dict(sd)
     model.eval()
 
+    # Score the *ensemble* — the thing actually served. The mean of the individual
+    # towers' val r is a different (and lower) quantity, and reporting it as the
+    # model's metric means nothing in the checkpoint ever measured what ships.
+    ens = _ensemble_val_metrics(model, data, split, device, batch_size)
+
     return model, {
-        "val_metrics": {"dg": {"pearson_r": float(np.mean(dg_rs))}},
-        "history": {"dg_tower_val_r": dg_rs},
-        "config": {"dg_widths": dg_widths, "dropout": dropout, "n_dg": n_dg},
+        "val_metrics": {"dg": ens},
+        "history": {"dg_tower_val_r": dg_rs, "dg_tower_mean_val_r": float(np.mean(dg_rs))},
+        "config": {"dg_widths": dg_widths, "dropout": dropout, "n_dg": n_dg,
+                   "early_stop_patience": patience},
     }
