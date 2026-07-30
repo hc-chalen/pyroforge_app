@@ -21,6 +21,11 @@ celery_app.conf.update(
     # matter how it is launched. Override with `celery ... --pool=<name>` if you
     # need concurrency on a fork-safe platform.
     worker_pool="solo",
+    # The pool is single-slot, so one runaway job blocks every other user
+    # indefinitely. Bound it: soft limit raises SoftTimeLimitExceeded inside the task
+    # (so the failure is reported to the client), hard limit kills it.
+    task_soft_time_limit=settings.task_soft_time_limit,
+    task_time_limit=settings.task_time_limit,
 )
 
 celery_app.autodiscover_tasks(["app.tasks"])
