@@ -3,8 +3,8 @@
   "construction": "dG=dG_abs(wt)+\u0394\u0394G (anchored); Tm=model_tm (Meltome test); \u0394\u0394G=model_ddg",
   "tm_meltome": {
     "n": 1106,
-    "mae": 5.433147920427598,
-    "pearson_r": 0.8342862490365868
+    "mae": 5.927963313594146,
+    "pearson_r": 0.8098833760453188
   },
   "val": {
     "dg": {
