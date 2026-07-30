@@ -1,0 +1,49 @@
+{
+  "device": "cpu",
+  "construction": "dG=dG_abs(wt)+\u0394\u0394G (anchored); Tm=model_tm (Meltome test); \u0394\u0394G=model_ddg",
+  "tm_meltome": {
+    "n": 1106,
+    "mae": 5.433147920427598,
+    "pearson_r": 0.8342862490365868
+  },
+  "val": {
+    "dg": {
+      "n": 42473,
+      "mae": 1.0028126239776611,
+      "pearson_r": 0.6556026935577393,
+      "within": {
+        "median_r": 0.7630206346511841,
+        "n_proteins": 22
+      }
+    },
+    "ddg": {
+      "n": 39264,
+      "mae": 0.5961301922798157,
+      "pearson_r": 0.7577194571495056,
+      "within": {
+        "median_r": 0.7901701331138611,
+        "n_proteins": 22
+      }
+    }
+  },
+  "test": {
+    "dg": {
+      "n": 3561,
+      "mae": 1.0475484132766724,
+      "pearson_r": 0.7384034395217896,
+      "within": {
+        "median_r": 0.5164555311203003,
+        "n_proteins": 3
+      }
+    },
+    "ddg": {
+      "n": 2676,
+      "mae": 0.5908382534980774,
+      "pearson_r": 0.6879847645759583,
+      "within": {
+        "median_r": -0.19324618577957153,
+        "n_proteins": 3
+      }
+    }
+  }
+}
