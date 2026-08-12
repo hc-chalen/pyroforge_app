@@ -14,6 +14,33 @@
 # weights (downloaded once to ~/.cache/torch). The esm2_*.pt files are training
 # data only.
 # ---------------------------------------------------------------------------
+
+# Everything the three Celery workers share. They differ only in which queue
+# they consume and which pool they use, so the rest is defined once here and
+# merged in with `<<:`. Compose ignores top-level `x-` keys.
+x-worker-base: &worker-base
+  build: ./backend
+  environment:
+    REDIS_URL: redis://redis:6379/0
+    # Training data path. Serving never reads it — that needs only the
+    # checkpoints — so the base stack mounts no dataset and this path is
+    # expected to be absent. To retrain in Docker (POST /api/v1/admin/train)
+    # add the training overlay, which mounts esm2_train.pt here:
+    #   docker compose -f docker-compose.yml -f docker-compose.train.yml up
+    DATA_PATH: ${DATA_PATH:-/data/esm2_train.pt}
+    CHECKPOINT_DIR: /app/checkpoints
+    DEVICE: ${DEVICE:-cpu}
+    TORCH_HOME: /app/cache/torch
+  depends_on:
+    redis:
+      condition: service_healthy
+    backend:
+      condition: service_healthy
+  volumes:
+    - ./backend/checkpoints:/app/checkpoints
+    - pyroforge-cache:/app/cache
+    - ${HOME}/.cache/torch:/app/cache/torch
+
 services:
   redis:
     image: redis:7-alpine
@@ -73,29 +100,50 @@ services:
       # First boot may download ESM-2 weights; don't mark unhealthy meanwhile.
       start_period: 60s
 
-  celery-worker:
-    build: ./backend
-    command: uv run celery -A app.core.celery_app worker --loglevel=info --pool=solo --concurrency=1
-    environment:
-      REDIS_URL: redis://redis:6379/0
-      # Training data path. Serving never reads it — that needs only the
-      # checkpoints — so the base stack mounts no dataset and this path is
-      # expected to be absent. To retrain in Docker (POST /api/v1/admin/train)
-      # add the training overlay, which mounts esm2_train.pt here:
-      #   docker compose -f docker-compose.yml -f docker-compose.train.yml up
-      DATA_PATH: ${DATA_PATH:-/data/esm2_train.pt}
-      CHECKPOINT_DIR: /app/checkpoints
-      DEVICE: ${DEVICE:-cpu}
-      TORCH_HOME: /app/cache/torch
-    depends_on:
-      redis:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    volumes:
-      - ./backend/checkpoints:/app/checkpoints
-      - pyroforge-cache:/app/cache
-      - ${HOME}/.cache/torch:/app/cache/torch
+  # --- Celery workers -------------------------------------------------------
+  # One worker per queue (routing table lives in app/core/celery_app.py). They
+  # were a single worker until a ~150 s optimization was found to stall every
+  # concurrent user's ~1 s prediction behind it — with a class using the app at
+  # once, that reads as "the site is broken". Splitting the queues means a slow
+  # job can only ever delay other slow jobs.
+  #
+  # Scaling: `docker compose up -d --scale worker-fast=2` adds capacity to one
+  # class without touching the others. Each ESM-2 worker resides ~3.2 GB, so
+  # check the Docker memory limit before scaling worker-fast/worker-heavy.
+  worker-fast:
+    <<: *worker-base
+    # predict_sequence, registry_search — seconds each. Solo pool: ESM-2/PyTorch
+    # is not fork-safe, and threads would contend on the same GIL-bound forward
+    # pass anyway.
+    command: >
+      uv run celery -A app.core.celery_app worker
+      --queues fast --hostname fast@%h
+      --loglevel=info --pool=solo --concurrency=1
+
+  worker-heavy:
+    <<: *worker-base
+    # optimize_sequence, train_models — minutes each, saturating every core
+    # (~11 CPUs on the measured scan). A second slot here would only split the
+    # same cores and slow both jobs, so this stays single-slot.
+    command: >
+      uv run celery -A app.core.celery_app worker
+      --queues heavy --hostname heavy@%h
+      --loglevel=info --pool=solo --concurrency=1
+
+  worker-io:
+    <<: *worker-base
+    # fold_structure — blocked on the external ESMFold API, not on local compute,
+    # and it never loads ESM-2 (the engine registry is lazy), so this container
+    # stays light. Threads are safe here precisely because no torch model is
+    # involved; 4 folds can wait on the network at once.
+    #
+    # Note: app.core.limits arms its SIGALRM soft-limit backstop only on the main
+    # thread, so it stands down under this pool. Folding is bounded instead by
+    # the httpx timeouts in VisualizationEngine (FOLD_READ_TIMEOUT_S).
+    command: >
+      uv run celery -A app.core.celery_app worker
+      --queues io --hostname io@%h
+      --loglevel=info --pool=threads --concurrency=4
 
   frontend:
     build:

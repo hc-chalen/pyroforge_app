@@ -20,11 +20,21 @@ services:
               count: 1
               capabilities: [gpu]
 
-  celery-worker:
+  # Only the two ESM-2 workers. worker-io just waits on the ESMFold HTTP API and
+  # never loads a torch model, so giving it the GPU would reserve VRAM for
+  # nothing. Both of these share the single card — two resident ESM-2 copies,
+  # ~2.5 GB VRAM each; on a small card, drop worker-fast back to DEVICE=cpu.
+  worker-fast:
     deploy:
       resources:
         reservations:
-          devices:
+          devices: &gpu-device
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+
+  worker-heavy:
+    deploy:
+      resources:
+        reservations:
+          devices: *gpu-device

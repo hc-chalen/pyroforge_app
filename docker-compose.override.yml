@@ -29,10 +29,18 @@ services:
       - ./backend:/app
       - /app/.venv
 
-  celery-worker:
-    volumes:
+  # Same live-source mount for each of the three queue workers. Anchors do not
+  # cross files, so the base file's x-worker-base cannot be reused here.
+  worker-fast:
+    volumes: &worker-dev-volumes
       - ./backend:/app
       - /app/.venv
+
+  worker-heavy:
+    volumes: *worker-dev-volumes
+
+  worker-io:
+    volumes: *worker-dev-volumes
 
   frontend:
     build:

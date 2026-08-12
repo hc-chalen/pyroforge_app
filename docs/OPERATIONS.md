@@ -24,7 +24,9 @@ unauthenticated: whoever can reach the port can use it.
               └───────────────────┬──────────────────────────┘
                                   │ /api/
                                   ▼
-                    :8000 backend ──► redis ──► celery-worker (GPU)
+                                        ┌─► worker-fast   (GPU) predict, registry
+                    :8000 backend ──► redis ─► worker-heavy  (GPU) optimize, train
+                                        └─► worker-io          fold (ESMFold API)
 ```
 
 `:3002` is the *only* published port in the production stack. The backend and
@@ -124,9 +126,17 @@ docker compose exec backend curl -X POST localhost:8000/api/v1/admin/train
 Celery worker afterwards, so the API log is not where job time shows up.
 
 ```bash
-docker compose logs -f celery-worker    # job starts, failures, durations
+docker compose logs -f worker-heavy     # optimize/train: starts, failures, durations
+docker compose logs -f worker-fast      # predict/registry
+docker compose logs -f worker-io        # folding (ESMFold API errors show here)
 docker compose ps                       # container health
 docker stats                            # GPU-host CPU/memory pressure
+
+# Queue backlog. A number that keeps climbing on `heavy` means jobs arrive
+# faster than one worker drains them — scale it: `--scale worker-heavy=2`.
+docker compose exec redis redis-cli llen fast
+docker compose exec redis redis-cli llen heavy
+docker compose exec redis redis-cli llen io
 ```
 
 Rate-limit rejections show up as `429` in the frontend's access log:

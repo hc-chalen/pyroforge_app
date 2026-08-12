@@ -29,6 +29,38 @@ celery_app.conf.update(
     # enforces the soft limit itself. Without that module they are inert.
     task_soft_time_limit=settings.task_soft_time_limit,
     task_time_limit=settings.task_time_limit,
+    # ------------------------------------------------------------------
+    # Queue routing.
+    #
+    # Task durations span two orders of magnitude — a prediction is ~0.6 s once
+    # ESM-2 is resident, a site-saturation scan is ~150 s on a 66-mer. On one
+    # single-slot worker every short job queues behind whatever long job is
+    # running (head-of-line blocking): with a class running the UAT together,
+    # one classmate's optimization stalls everyone else's Tm prediction. Three
+    # queues, one worker each, so the classes cannot block each other:
+    #
+    #   fast   predict_sequence, registry_search   ~1 s, ESM-2 resident
+    #   heavy  optimize_sequence, train_models     minutes, CPU/GPU-bound
+    #   io     fold_structure                      waits on the ESMFold API
+    #
+    # `io` is deliberately separate from `heavy`: folding is network-bound and
+    # never touches ESM-2, so its worker stays light and can run several folds
+    # concurrently on a thread pool.
+    #
+    # Routing lives here, on the app shared by producer and consumer, so the
+    # FastAPI side publishes to the same queues the workers consume without any
+    # per-call `queue=` argument. Adding a task without a route sends it to
+    # task_default_queue, which is `fast` — deliberately the queue that is
+    # always being drained, so a missing route degrades to "runs anyway".
+    # ------------------------------------------------------------------
+    task_default_queue="fast",
+    task_routes={
+        "app.tasks.predict_sequence": {"queue": "fast"},
+        "app.tasks.registry_search": {"queue": "fast"},
+        "app.tasks.optimize_sequence": {"queue": "heavy"},
+        "app.tasks.train_models": {"queue": "heavy"},
+        "app.tasks.fold_structure": {"queue": "io"},
+    },
 )
 
 celery_app.autodiscover_tasks(["app.tasks"])

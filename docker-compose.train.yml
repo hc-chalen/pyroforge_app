@@ -27,7 +27,9 @@ services:
       DATA_PATH: /data/esm2_train.pt
       TEST_DATA_PATH: /data/esm2_test.pt
 
-  celery-worker:
+  # Only worker-heavy: train_models routes to the `heavy` queue, so the other two
+  # workers never read the dataset and mounting a ~2.9 GB file into them is waste.
+  worker-heavy:
     volumes:
       - ${TRAIN_DATA:-./esm2_train.pt}:/data/esm2_train.pt:ro
       - ${TEST_DATA:-./esm2_test.pt}:/data/esm2_test.pt:ro
