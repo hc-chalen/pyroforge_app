@@ -1,0 +1,144 @@
+{
+  "benchmark": "grouped_kfold_cv",
+  "purpose": "Out-of-fold \u0394\u0394G performance over every parent protein with enough anchored mutations, replacing the 4-protein esm2_test.pt estimate.",
+  "data_path": "/Users/ericali/Documents/pyroforge_app/esm2_train.pt",
+  "code_path": "/Users/ericali/Documents/pyroforge_app/backend/app",
+  "device": "cpu",
+  "folds": 5,
+  "seed": 42,
+  "epochs_max": 12,
+  "patience": 3,
+  "architecture": {
+    "widths": [
+      256,
+      256,
+      256
+    ],
+    "dropout": 0.32368286429816545,
+    "lr": 0.0002857098065267953,
+    "weight_decay": 1.237238721990117e-06,
+    "batch_size": 128,
+    "input_dim": 2560
+  },
+  "n_rows_scored": 434601,
+  "n_parents_total": 266,
+  "pooled": {
+    "pearson_r": 0.637310266494751,
+    "mae": 0.7030104994773865,
+    "residual_std": 0.9320886135101318
+  },
+  "ranking": {
+    "n_proteins": 262,
+    "min_mutations_per_protein": 20,
+    "base_rate_stabilizing": 0.2077599720238024,
+    "median_within_protein_spearman": 0.7383148202589619,
+    "top_k_precision": {
+      "1": 0.732824427480916,
+      "3": 0.7404580152671756,
+      "5": 0.7358778625954199,
+      "10": 0.7030534351145039
+    },
+    "top_k_median_true_ddg": {
+      "1": 0.39140795171260834,
+      "3": 0.31318284571170807,
+      "5": 0.32628148794174194,
+      "10": 0.26421281695365906
+    },
+    "headline_k": 5,
+    "headline_precision_ci95": [
+      0.6984732824427481,
+      0.7732824427480915
+    ],
+    "headline_precision_min": 0.0,
+    "headline_precision_max": 1.0,
+    "proteins_below_half_precision": 54,
+    "median_candidates_predicted_positive": 129.5,
+    "proteins_with_no_positive_candidate": 3,
+    "legacy_gate": {
+      "threshold": 1.5216058540344237,
+      "proteins_returning_any_mutation": 29
+    }
+  },
+  "random_shortlist_control": {
+    "top_k_precision": {
+      "1": 0.18702290076335878,
+      "3": 0.18829516539440203,
+      "5": 0.1984732824427481,
+      "10": 0.2103053435114504
+    },
+    "median_within_protein_spearman": 0.0029858181775948263
+  },
+  "self_ddg_offset": {
+    "per_fold": [
+      -0.056570980697870255,
+      0.05495166406035423,
+      -0.0669795498251915,
+      -0.03212003409862518,
+      0.019592156633734703
+    ],
+    "mean": -0.0162253487855196,
+    "note": "Structurally must be 0. A stable nonzero mean across folds is a constant level bias on every served \u0394\u0394G and is correctable; a fold-varying one is run-to-run noise and is not."
+  },
+  "folds_detail": [
+    {
+      "fold": 1,
+      "train_parents": 193,
+      "eval_parents": 52,
+      "eval_rows": 86990,
+      "pearson_r": 0.634521484375,
+      "mae": 0.697526752948761,
+      "residual_std": 0.9325149655342102,
+      "self_ddg_offset": -0.056570980697870255,
+      "seconds": 216.6
+    },
+    {
+      "fold": 2,
+      "train_parents": 191,
+      "eval_parents": 54,
+      "eval_rows": 86896,
+      "pearson_r": 0.6282540559768677,
+      "mae": 0.7871642112731934,
+      "residual_std": 0.9782043099403381,
+      "self_ddg_offset": 0.05495166406035423,
+      "seconds": 175.9
+    },
+    {
+      "fold": 3,
+      "train_parents": 191,
+      "eval_parents": 54,
+      "eval_rows": 86898,
+      "pearson_r": 0.6298694610595703,
+      "mae": 0.7553854584693909,
+      "residual_std": 0.990350604057312,
+      "self_ddg_offset": -0.0669795498251915,
+      "seconds": 438.2
+    },
+    {
+      "fold": 4,
+      "train_parents": 191,
+      "eval_parents": 54,
+      "eval_rows": 86896,
+      "pearson_r": 0.6781312823295593,
+      "mae": 0.6149318218231201,
+      "residual_std": 0.8249125480651855,
+      "self_ddg_offset": -0.03212003409862518,
+      "seconds": 1121.1
+    },
+    {
+      "fold": 5,
+      "train_parents": 193,
+      "eval_parents": 52,
+      "eval_rows": 86921,
+      "pearson_r": 0.6651745438575745,
+      "mae": 0.6600611805915833,
+      "residual_std": 0.8681713342666626,
+      "self_ddg_offset": 0.019592156633734703,
+      "seconds": 413.5
+    }
+  ],
+  "predictions_path": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/ddg_grouped_cv.predictions.npz",
+  "caveats": [
+    "Grouped by parent_protein_ids. The exported tensors carry no sequence column, so homologous parents cannot be detected and may straddle folds \u2014 treat these as an upper bound for a genuinely novel fold.",
+    "Architecture is held fixed at the shipped NAS config; this measures the generalization of the served recipe, not of the search."
+  ]
+}
