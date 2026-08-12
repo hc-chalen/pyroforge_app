@@ -22,10 +22,18 @@ celery_app.conf.update(
     # need concurrency on a fork-safe platform.
     worker_pool="solo",
     # The pool is single-slot, so one runaway job blocks every other user
-    # indefinitely. Bound it: soft limit raises SoftTimeLimitExceeded inside the task
-    # (so the failure is reported to the client), hard limit kills it.
+    # indefinitely — hence the limits below. NOTE: Celery implements these in the
+    # *pool*, and only prefork implements them; the solo pool discards the
+    # timeouts the worker hands it (see app.core.limits for the exact code path).
+    # They are declared here because `app.core.limits` reads them back and
+    # enforces the soft limit itself. Without that module they are inert.
     task_soft_time_limit=settings.task_soft_time_limit,
     task_time_limit=settings.task_time_limit,
 )
 
 celery_app.autodiscover_tasks(["app.tasks"])
+
+# Registers the task_prerun/task_postrun receivers that make task_soft_time_limit
+# real under the solo pool. Imported for the side effect; must come after the
+# config above so the receivers read the final settings.
+from app.core import limits  # noqa: E402,F401

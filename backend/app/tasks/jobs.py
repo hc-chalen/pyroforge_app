@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.api.schemas import PredictResponse
 from app.core.celery_app import celery_app
+from app.core.limits import Deadline, soft_time_limit
 from app.engines.prediction import Mutation
 from app.engines.registry import get_engine_registry
 from app.services.esm2 import get_esm2_service
@@ -41,8 +42,14 @@ def optimize_sequence(
     perplexity_threshold: float = 0.05,
 ) -> dict:
     reg = get_engine_registry()
+    # The SIGALRM backstop in app.core.limits cannot interrupt a task parked
+    # inside a single long C call, so the scan also checks its budget from the
+    # loop it already runs — one check per candidate, and it aborts with a
+    # message naming the actual cause instead of a bare signal.
+    deadline = Deadline(soft_time_limit(self))
 
     def progress(done: int, total: int) -> None:
+        deadline.check()
         self.update_state(state="PROGRESS", meta={"progress": done / max(total, 1)})
 
     result = reg.optimization.optimize(
@@ -69,6 +76,8 @@ def optimize_sequence(
         "baseline_tm": result.baseline_tm,
         "ddg": result.ddg,
         "ddg_ci95": result.ddg_ci95,
+        "mutation_details": result.mutation_details,
+        "ranking_quality": result.ranking_quality,
         "scan_summary": result.scan_summary,
         "structure_comparison": structure_comparison,
     }
