@@ -7,6 +7,7 @@ import { NavbarResizeHandle } from "@/components/layout/NavbarResizeHandle";
 import { SettingsModal } from "@/components/layout/SettingsModal";
 import { EmptyState } from "@/features/empty/EmptyState";
 import { SequenceInputCard } from "@/features/input/SequenceInputCard";
+import { CompositionCard } from "@/features/composition/CompositionCard";
 import { PredictionCard } from "@/features/prediction/PredictionCard";
 import { OptimizationCard } from "@/features/optimization/OptimizationCard";
 import { ThermalStructureCard } from "@/features/visualization/ThermalStructureCard";
@@ -112,6 +113,7 @@ export function App() {
                   analysisId={selected.id}
                   sequence={selected.sequence}
                 />
+                <CompositionCard sequence={selected.sequence} />
                 <PredictionCard
                   analysisId={selected.id}
                   sequence={selected.sequence}
