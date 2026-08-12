@@ -21,6 +21,35 @@ dependencies = [
     "pandas>=2.0.0",
 ]
 
+# ---------------------------------------------------------------------------
+# torch wheel selection.
+#
+# PyPI's default torch wheel is the CUDA build: it drags in ~2.7 GB of nvidia-*
+# wheels on every platform, including Apple Silicon and any CPU-only Linux host
+# that can never use them. That made `uv sync` in the Docker build download
+# multi-hundred-MB CUDA wheels and time out.
+#
+# So: pull torch from the CPU index everywhere except Linux/x86_64, which is the
+# only platform the GPU stack (docker-compose.gpu.yml, DEVICE=cuda) targets.
+# A Linux/aarch64 GPU host (Jetson, GH200) would get the CPU build here — add a
+# marker for it if that ever becomes a deployment target.
+# ---------------------------------------------------------------------------
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cpu", marker = "sys_platform != 'linux' or platform_machine != 'x86_64'" },
+]
+
 [project.scripts]
 # Served-model training pipeline (run in this order for a full rebuild)
 pyroforge-train = "app.training.train:main"                       # model_thermo (dG-only ensemble)

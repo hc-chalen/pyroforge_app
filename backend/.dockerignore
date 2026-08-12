@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# Build context exclusions for backend/Dockerfile.
+#
+# The important one is .venv: it is ~800 MB of host-built (macOS) packages whose
+# python symlink is dead inside the container. Without this file, `COPY . .`
+# copied it over the venv that `uv sync --frozen --no-dev` had just built, uv
+# discarded the broken result and re-created the whole environment on the next
+# layer — throwing away the pinned install and adding ~30 s to every build.
+# ---------------------------------------------------------------------------
+
+# --- Virtual environments (rebuilt in-image by `uv sync`) ---
+.venv/
+venv/
+env/
+
+# --- Byte-compiled / caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# --- Runtime cache (fetched PDB structures, embeddings scratch, ESM-2 weights).
+# Compose mounts the pyroforge-cache volume and ${HOME}/.cache/torch here.
+cache/
+
+# --- Model checkpoints. Every deployment path goes through docker compose,
+# which bind-mounts ./backend/checkpoints over /app/checkpoints (see
+# docker-compose.yml) — so anything baked in is shadowed anyway. The Dockerfile
+# mkdir -p's the empty tree.
+# NOTE: this means the image is not runnable standalone via plain `docker run`
+# without mounting checkpoints; drop this rule if that ever becomes a use case.
+checkpoints/
+
+# --- Packaging / build ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Local env (secrets). .env.example is documentation, keep it out too:
+# nothing at runtime reads it.
+.env
+.env.*
+
+# --- Logs / experiment scratch ---
+*.log
+logs/
+mlruns/
+wandb/
+
+# --- VCS / editor ---
+.git/
+.gitignore
+.DS_Store
+
+# NOTE: data/ is deliberately NOT ignored — app/core/config.py resolves
+# igem_parts_fasta_path to backend/data/igem_parts.fasta at runtime.
