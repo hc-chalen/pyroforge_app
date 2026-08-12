@@ -60,9 +60,10 @@ class PredictionEngine:
             return {"tm_confidence": "high"}
         return {
             "tm_confidence": "low",
+            # Kept to one short sentence: the UI shows it in place of the number,
+            # where a paragraph would be skipped.
             "tm_confidence_reason": (
-                f"sequence length {n_residues} is outside model_tm's training range "
-                f"{lo}-{hi} aa; absolute Tm is extrapolated"
+                f"{n_residues} aa is outside model_tm's {lo}–{hi} aa training range."
             ),
         }
 
@@ -82,9 +83,8 @@ class PredictionEngine:
         return {
             "dg_confidence": "low",
             "dg_confidence_reason": (
-                f"sequence length {n_residues} is outside the {lo}-{hi} aa regime the "
-                f"dG/ΔΔG models were trained on (Tsuboyama small designed domains); "
-                f"absolute dG and ΔΔG are extrapolated"
+                f"{n_residues} aa is outside the {lo}–{hi} aa small-domain regime "
+                f"ΔG and ΔΔG were trained on."
             ),
         }
 

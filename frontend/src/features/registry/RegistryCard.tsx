@@ -22,6 +22,7 @@ import { searchRegistry } from "@/services/registry";
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { OptimizationResult, RegistrySearchResponse } from "@/types/api";
+import { withheldSequence } from "@/utils/answerability";
 import { hasOptimizedVariant } from "@/utils/sequenceVariant";
 
 interface RegistryCardProps {
@@ -82,6 +83,7 @@ export function RegistryCard({
   }
 
   const displayError = localError;
+  const inputRefusal = withheldSequence(activeSequence);
 
   return (
     <Paper>
@@ -96,7 +98,7 @@ export function RegistryCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Search iGEM Parts Registry for homologous BioBricks via MMseqs2.
+          Homologous BioBricks in the iGEM Parts Registry (MMseqs2).
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -155,7 +157,7 @@ export function RegistryCard({
           <Button
             onClick={handleRun}
             loading={loading}
-            disabled={!activeSequence || loading}
+            disabled={!activeSequence || loading || inputRefusal != null}
             color="brand"
           >
             Search Registry ({variant})

@@ -189,37 +189,31 @@ export function ModelDesignPanel() {
         </Accordion.Control>
         <Accordion.Panel>
           <Text size="sm" c="dimmed" mb="xs">
-            PyroForge runs three small models on frozen ESM2-650M embeddings:
+            Three small models on frozen ESM2-650M embeddings:
           </Text>
           <List size="sm" spacing="xs" c="dimmed">
             <List.Item>
-              <strong>Tm</strong> — absolute melting temperature from the
-              Meltome-trained <Text span ff="monospace" size="sm">model_tm</Text>{" "}
-              (PCA → Ridge + gradient boosting), run on the wild-type or mutant
-              sequence embedding.
+              <strong>Tm</strong> — Meltome-trained{" "}
+              <Text span ff="monospace" size="sm">model_tm</Text> (PCA → Ridge +
+              gradient boosting).
             </List.Item>
             <List.Item>
-              <strong>ΔG</strong> — absolute folding free energy from{" "}
+              <strong>ΔG</strong> —{" "}
               <Text span ff="monospace" size="sm">model_thermo</Text>, an averaged
               ensemble of MLP towers.
             </List.Item>
             <List.Item>
-              <strong>ΔΔG</strong> — from{" "}
-              <Text span ff="monospace" size="sm">model_ddg</Text>, an MLP on the{" "}
+              <strong>ΔΔG</strong> —{" "}
+              <Text span ff="monospace" size="sm">model_ddg</Text>, an MLP on the
+              difference embedding{" "}
               <Text span ff="monospace" size="sm">
-                difference embedding Δemb = emb(mut) − emb(wt)
+                Δemb = emb(mut) − emb(wt)
               </Text>
-              . This is the trustworthy mutation-effect signal and what
-              optimization ranks on.
+              . The mutation-effect signal optimization ranks on.
             </List.Item>
             <List.Item>
-              <strong>Optimization</strong> — ranks mutations by{" "}
-              <Text span ff="monospace" size="sm">
-                ΔΔG
-              </Text>{" "}
-              (higher ΔΔG = more stabilizing = higher score), behind an ESM-2
-              residue-plausibility guardrail and a significance gate at the ΔΔG
-              model's own noise floor.
+              <strong>Optimization</strong> — ranks by ΔΔG (higher = more
+              stabilizing) behind an ESM-2 residue-plausibility guardrail.
             </List.Item>
           </List>
           {nasReport?.ddg_ranking && (

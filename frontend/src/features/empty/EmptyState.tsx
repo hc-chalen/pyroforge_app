@@ -21,10 +21,8 @@ export function EmptyState({ minHeight }: EmptyStateProps) {
             Start a New Analysis
           </Title>
           <Text size="sm" c="dimmed" ta="center">
-            Use the <strong>+ New</strong> button in the sidebar to create your
-            first analysis. Paste a protein sequence, then run prediction,
-            optimization, visualization, registry search, and procurement
-            steps from the cards below.
+            Hit <strong>+ New</strong> in the sidebar and paste a protein
+            sequence to begin.
           </Text>
         </Stack>
       </Paper>

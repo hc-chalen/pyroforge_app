@@ -10,8 +10,10 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
+import { InfoNote } from "@/components/ui/InfoNote";
 import { MetricLabel } from "@/components/ui/MetricLabel";
 import { StatPaper } from "@/components/ui/StatPaper";
+import { WithheldNotice, WithheldValue } from "@/components/ui/Withheld";
 import {
   SequenceVariantSelector,
 } from "@/components/ui/SequenceVariantSelector";
@@ -24,6 +26,11 @@ import type {
   PredictResponse,
   SequenceVariant,
 } from "@/types/api";
+import {
+  withheldSequence,
+  withheldStability,
+  withheldTm,
+} from "@/utils/answerability";
 import { hasOptimizedVariant } from "@/utils/sequenceVariant";
 
 /** ±95% interval under a stat value. Renders nothing when the model has no estimate. */
@@ -65,9 +72,8 @@ export function PredictionCard({
     (s) => s.analyses.find((a) => a.id === analysisId)?.variantResults,
   );
 
-  const disabled = !activeSequence || loading;
-  const hasMutations =
-    variant === "optimized" && (optimization?.mutations.length ?? 0) > 0;
+  const inputRefusal = withheldSequence(activeSequence);
+  const disabled = !activeSequence || loading || inputRefusal != null;
 
   // Prediction is variant-aware: prefer the result computed for the selected
   // variant. If none exists yet, fall back to the other variant's result shown
@@ -90,6 +96,11 @@ export function PredictionCard({
     (variant === "optimized"
       ? (optimization?.ddg ?? displayPrediction?.ddg)
       : displayPrediction?.ddg) ?? null;
+
+  // Honest-refusal gates. Tm and ΔG/ΔΔG have different training domains, so a
+  // sequence can be answerable for one and not the other.
+  const tmRefusal = withheldTm(displayPrediction);
+  const stabilityRefusal = withheldStability(displayPrediction);
 
   async function handleRun() {
     setLoading(true);
@@ -135,13 +146,7 @@ export function PredictionCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Absolute Tm (Meltome-trained model_tm) and ΔG on the sequence; ΔΔG from
-          the difference-embedding model ranks the mutation effect.
-          {hasOptimizedVariant(optimization)
-            ? " Select original or optimized variant below."
-            : hasMutations
-              ? " Optimization mutations will be included to compute ΔΔG."
-              : " Run optimization first to compute the stability change (ΔΔG)."}
+          Melting temperature and folding stability for the current sequence.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -151,11 +156,14 @@ export function PredictionCard({
             onVariantChange={setVariant}
           />
         )}
+        {inputRefusal?.scope === "step" && (
+          <WithheldNotice withheld={inputRefusal} />
+        )}
         {!modelsReady && !healthLoading && (
-          <Alert color="orange" title="Models not ready">
-            Prediction will ask the backend to load checkpoints. If checkpoint
-            files are missing, the backend will return an error.
-          </Alert>
+          <InfoNote tone="warning" summary="Model checkpoints are not loaded yet.">
+            The first run asks the backend to load them; if the checkpoint files
+            are missing it will return an error instead of a prediction.
+          </InfoNote>
         )}
         {localError && (
           <Alert color="red" title="Error">
@@ -165,42 +173,10 @@ export function PredictionCard({
         {displayPrediction && (
           <Stack gap="sm">
             {isStale && (
-              <Alert color="yellow" variant="light" p="xs">
-                <Text size="xs">
-                  Showing the {otherVariant} result — prediction hasn't been run
-                  for the {variant} variant yet. Click “Run Prediction ({variant}
-                  )” to compute it.
-                </Text>
-              </Alert>
-            )}
-            {displayPrediction.tm_confidence === "low" && (
-              <Alert color="orange" variant="light" title="Tm is extrapolated" p="xs">
-                <Text size="xs">
-                  {displayPrediction.tm_confidence_reason ??
-                    "This sequence is outside model_tm's training range — treat the absolute Tm as indicative only."}
-                </Text>
-              </Alert>
-            )}
-            {displayPrediction.dg_confidence === "low" && (
-              <Alert
-                color="orange"
-                variant="light"
-                title="ΔG and ΔΔG are extrapolated"
-                p="xs"
-              >
-                <Text size="xs">
-                  {displayPrediction.dg_confidence_reason ??
-                    "This sequence is longer than the small designed domains the ΔG/ΔΔG models were trained on — treat both as indicative only."}
-                </Text>
-              </Alert>
-            )}
-            {displayPrediction.tm_confidence === "unavailable" && (
-              <Alert color="gray" variant="light" title="Tm unavailable" p="xs">
-                <Text size="xs">
-                  No model_tm checkpoint is installed, so absolute Tm could not be
-                  predicted for this sequence.
-                </Text>
-              </Alert>
+              <InfoNote
+                tone="warning"
+                summary={`Showing the ${otherVariant} result — not yet run for ${variant}.`}
+              />
             )}
             <div style={{ opacity: isStale ? 0.5 : 1 }}>
               <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
@@ -210,11 +186,20 @@ export function PredictionCard({
                     method="absolute"
                     tooltip={
                       showBaselineTm
-                        ? "Whole-protein Tm from model_tm. A few point mutations barely move the mean-pooled embedding, so the variant's Tm stays ≈ the wild-type baseline — the mutation effect is captured by ΔΔG, not Tm."
-                        : "Absolute melting temperature from the Meltome-trained model_tm, run on this sequence."
+                        ? "Whole-protein Tm from model_tm. Point mutations barely move the mean-pooled embedding, so the variant sits at ≈ the wild-type baseline — the mutation effect lives in ΔΔG."
+                        : "Absolute melting temperature from the Meltome-trained model_tm."
                     }
                   />
-                  {showBaselineTm ? (
+                  {tmRefusal ? (
+                    <WithheldValue
+                      withheld={tmRefusal}
+                      value={
+                        showBaselineTm
+                          ? optimization?.baseline_tm?.toFixed(2)
+                          : displayPrediction.tm?.toFixed(2)
+                      }
+                    />
+                  ) : showBaselineTm ? (
                     <>
                       <Text fw={700} size="lg" ff="monospace">
                         ≈ {optimization!.baseline_tm != null
@@ -243,12 +228,21 @@ export function PredictionCard({
                     <MetricLabel
                       label="ΔG (kcal/mol)"
                       method="absolute"
-                      tooltip="Absolute folding free energy (ΔG) from the thermo model."
+                      tooltip="Absolute folding free energy from the thermo model."
                     />
-                    <Text fw={700} size="lg" ff="monospace">
-                      {displayPrediction.dg.toFixed(2)}
-                    </Text>
-                    <CiHint ci95={displayPrediction.dg_ci95} unit="kcal/mol" />
+                    {stabilityRefusal ? (
+                      <WithheldValue
+                        withheld={stabilityRefusal}
+                        value={displayPrediction.dg?.toFixed(2)}
+                      />
+                    ) : (
+                      <>
+                        <Text fw={700} size="lg" ff="monospace">
+                          {displayPrediction.dg!.toFixed(2)}
+                        </Text>
+                        <CiHint ci95={displayPrediction.dg_ci95} unit="kcal/mol" />
+                      </>
+                    )}
                   </StatPaper>
                 )}
                 {ddgValue != null && (
@@ -256,30 +250,59 @@ export function PredictionCard({
                     <MetricLabel
                       label="ΔΔG (kcal/mol)"
                       method="derived"
-                      tooltip="Difference-embedding model_ddg. Positive = stabilizing (more thermostable). The trustworthy mutation-effect signal."
+                      tooltip="Difference-embedding model_ddg. Positive = stabilizing. This is the mutation-effect signal to read."
                     />
-                    <Text
-                      fw={700}
-                      size="lg"
-                      ff="monospace"
-                      c={ddgValue > 0 ? "teal" : ddgValue < 0 ? "red" : undefined}
-                    >
-                      {ddgValue > 0 ? "+" : ""}
-                      {ddgValue.toFixed(2)}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {ddgValue > 0
-                        ? "Stabilizing"
-                        : ddgValue < 0
-                          ? "Destabilizing"
-                          : "Neutral"}
-                    </Text>
-                    <CiHint ci95={displayPrediction.ddg_ci95} unit="kcal/mol" />
+                    {stabilityRefusal ? (
+                      <WithheldValue
+                        withheld={stabilityRefusal}
+                        value={ddgValue?.toFixed(2)}
+                      />
+                    ) : (
+                      <>
+                        <Text
+                          fw={700}
+                          size="lg"
+                          ff="monospace"
+                          c={
+                            ddgValue! > 0
+                              ? "teal"
+                              : ddgValue! < 0
+                                ? "red"
+                                : undefined
+                          }
+                        >
+                          {ddgValue! > 0 ? "+" : ""}
+                          {ddgValue!.toFixed(2)}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {ddgValue! > 0
+                            ? "Stabilizing"
+                            : ddgValue! < 0
+                              ? "Destabilizing"
+                              : "Neutral"}
+                        </Text>
+                        <CiHint ci95={displayPrediction.ddg_ci95} unit="kcal/mol" />
+                      </>
+                    )}
                   </StatPaper>
                 )}
               </SimpleGrid>
             </div>
           </Stack>
+        )}
+        {!displayPrediction && !inputRefusal && (
+          <InfoNote
+            summary={
+              hasOptimizedVariant(optimization)
+                ? "Runs on the selected variant."
+                : "ΔΔG needs a mutation — run optimization first."
+            }
+          >
+            Tm comes from the Meltome-trained <code>model_tm</code>; ΔG from the
+            thermo model; ΔΔG from the difference-embedding model, which scores a
+            mutation against its wild type. Each is reported only for sequences
+            inside the length regime it was trained on.
+          </InfoNote>
         )}
         <Group>
           <Button

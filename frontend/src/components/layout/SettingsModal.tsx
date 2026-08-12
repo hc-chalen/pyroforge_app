@@ -79,9 +79,7 @@ export function SettingsModal({ opened, onClose }: SettingsModalProps) {
           labelPosition="left"
         />
         <Text size="xs" c="dimmed">
-          How PyroForge predicts Tm, ΔG and ΔΔG, and the NAS-selected algorithm
-          stack. Reference only — nothing here needs changing to run the
-          pipeline.
+          Reference only — nothing below changes how the pipeline runs.
         </Text>
         <ModelDesignPanel />
         <Group justify="flex-end">

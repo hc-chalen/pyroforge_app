@@ -13,9 +13,11 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
+import { InfoNote } from "@/components/ui/InfoNote";
 import { MetricLabel } from "@/components/ui/MetricLabel";
 import { SequenceViewer } from "@/components/ui/SequenceViewer";
 import { StatPaper } from "@/components/ui/StatPaper";
+import { WithheldNotice } from "@/components/ui/Withheld";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useHealth } from "@/hooks/useHealth";
 import { optimize } from "@/services/optimize";
@@ -23,6 +25,7 @@ import { StructureCompareCard } from "@/features/optimization/StructureCompareCa
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { OptimizationResult, RankingQuality } from "@/types/api";
+import { withheldOptimize } from "@/utils/answerability";
 import { isOptimizationStale } from "@/utils/sequenceVariant";
 
 function pct(value?: number): string {
@@ -32,13 +35,12 @@ function pct(value?: number): string {
 /**
  * States what the shortlist ordering is measured to be worth, and where it fails.
  *
- * This replaces the previous "cleared a 1.96σ significance gate" copy, which read
- * as a statistical guarantee about each individual mutation that the model cannot
- * support. What held-out data does support is the *ranking*, so that is what is
- * quoted — including the per-protein spread, because the mean alone hides the
- * proteins where the ranking fails outright.
+ * The headline number sits on one line; the per-protein spread — which is the
+ * part that stops a reader over-trusting the average — stays one click away
+ * rather than being cut, because the mean alone hides the proteins where the
+ * ranking fails outright.
  */
-function RankingQualityAlert({ quality }: { quality?: RankingQuality | null }) {
+function RankingQualityNote({ quality }: { quality?: RankingQuality | null }) {
   if (!quality) return null;
   const k = quality.headline_k ?? 5;
   const precision = quality.top_k_precision?.[String(k)];
@@ -48,26 +50,29 @@ function RankingQualityAlert({ quality }: { quality?: RankingQuality | null }) {
   const spearman = quality.median_within_protein_spearman;
 
   return (
-    <Alert color="gray" variant="light" title="What this ranking is measured to be worth" p="xs">
-      <Text size="xs">
-        On {quality.n_proteins ?? "?"} held-out proteins,{" "}
-        <strong>{pct(precision)}</strong> of a top-{k} shortlist was truly stabilizing
-        {ci?.length === 2 ? ` (95% CI ${pct(ci[0])}–${pct(ci[1])})` : ""}, against a{" "}
-        {pct(baseRate)} base rate — a {(precision / baseRate).toFixed(1)}×
-        enrichment
-        {spearman != null
-          ? `, with a median within-protein rank correlation of ${spearman.toFixed(2)}`
-          : ""}
-        .{" "}
-        <strong>It is not uniform.</strong> Per protein that precision ranged from{" "}
-        {pct(quality.headline_precision_min)} to {pct(quality.headline_precision_max)}
-        {quality.proteins_below_half_precision != null && quality.n_proteins
-          ? `, and fewer than half the shortlist was stabilizing for ${quality.proteins_below_half_precision} of the ${quality.n_proteins} proteins`
-          : ""}
-        . Screen the shortlist as a whole; do not commit to a single entry on this
-        evidence.
-      </Text>
-    </Alert>
+    <InfoNote
+      summary={
+        <>
+          Measured: <strong>{pct(precision)}</strong> of a top-{k} shortlist was
+          truly stabilizing on {quality.n_proteins ?? "?"} held-out proteins, vs a{" "}
+          {pct(baseRate)} base rate.
+        </>
+      }
+      moreLabel="Spread"
+    >
+      {ci?.length === 2 ? `95% CI ${pct(ci[0])}–${pct(ci[1])}. ` : ""}
+      That is a {(precision / baseRate).toFixed(1)}× enrichment
+      {spearman != null
+        ? `, with a median within-protein rank correlation of ${spearman.toFixed(2)}`
+        : ""}
+      , but it is not uniform: per protein the precision ranged from{" "}
+      {pct(quality.headline_precision_min)} to {pct(quality.headline_precision_max)}
+      {quality.proteins_below_half_precision != null && quality.n_proteins
+        ? `, and fewer than half the shortlist was stabilizing for ${quality.proteins_below_half_precision} of the ${quality.n_proteins} proteins`
+        : ""}
+      . Screen the shortlist as a whole; do not commit to a single entry on this
+      evidence.
+    </InfoNote>
   );
 }
 
@@ -95,7 +100,8 @@ export function OptimizationCard({
   const setStatus = useAnalysisStore((s) => s.setStatus);
   const setError = useAnalysisStore((s) => s.setError);
 
-  const disabled = !sequence.trim() || loading;
+  const inputRefusal = withheldOptimize(sequence);
+  const disabled = !sequence.trim() || loading || inputRefusal != null;
 
   async function handleRun() {
     setLocalError(undefined);
@@ -137,45 +143,40 @@ export function OptimizationCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Site-saturation scan ranked by ΔΔG (difference-embedding model), with an
-          ESM-2 plausibility guardrail and greedy multi-mutant selection. The result
-          is a <strong>ranked shortlist to screen</strong>, not a set of verified
-          stabilizing mutations.
+          Every single-residue substitution, ranked by ΔΔG — a shortlist to
+          screen, not verified stabilizing mutations.
         </Text>
-        <RankingQualityAlert quality={optimization?.ranking_quality} />
-        <Alert color="gray" variant="light" title="What ΔΔG does and doesn't say" p="xs">
-          <Text size="xs">
-            ΔΔG is a change in <strong>folding free energy</strong> (Tsuboyama
-            small-domain assay). Tm is a <strong>different measurement</strong>
-            {" "}(Meltome whole-protein assay), and the two are only weakly related —
-            corr(ΔG, Tm) is +0.24 row-level and +0.17 per-protein across the 21
-            proteins carrying both labels. Read a positive ΔΔG as “predicted more
-            resistant to unfolding”, <strong>not</strong> as a predicted Tm gain.
-            {(optimization?.mutations.length ?? 0) > 1 && (
-              <>
-                {" "}
-                The combined ΔΔG for a {optimization!.mutations.length}-mutation
-                variant is also an <strong>extrapolation</strong>: model_ddg was
-                trained on single substitutions, and selection assumes their effects
-                add without epistasis.
-              </>
-            )}
-          </Text>
-        </Alert>
+        {inputRefusal?.scope === "step" && (
+          <WithheldNotice withheld={inputRefusal} />
+        )}
+        <RankingQualityNote quality={optimization?.ranking_quality} />
+        <InfoNote summary="ΔΔG is a folding-stability change, not a predicted Tm gain.">
+          ΔΔG comes from the Tsuboyama small-domain assay; Tm from the Meltome
+          whole-protein assay. The two are only weakly related — corr(ΔG, Tm) is
+          +0.24 row-level and +0.17 per-protein across the 21 proteins carrying
+          both labels. Read a positive ΔΔG as “predicted more resistant to
+          unfolding”.
+          {(optimization?.mutations.length ?? 0) > 1 && (
+            <>
+              {" "}
+              The combined ΔΔG for this {optimization!.mutations.length}-mutation
+              variant is a further extrapolation: model_ddg was trained on single
+              substitutions, and selection assumes their effects add without
+              epistasis.
+            </>
+          )}
+        </InfoNote>
         {!modelsReady && !healthLoading && (
-          <Alert color="orange" title="Models not ready">
-            Optimization will ask the backend to load checkpoints. If checkpoint
-            files are missing, the backend will return an error.
-          </Alert>
+          <InfoNote tone="warning" summary="Model checkpoints are not loaded yet.">
+            The first run asks the backend to load them; if the checkpoint files
+            are missing it will return an error instead of a scan.
+          </InfoNote>
         )}
         {isOptimizationStale(sequence, optimization) && (
-          <Alert color="yellow" title="Optimization is out of date">
-            <Text size="xs">
-              The input sequence has been edited since this scan ran, so these
-              mutations and their positions refer to the previous sequence. Re-run the
-              optimization.
-            </Text>
-          </Alert>
+          <InfoNote
+            tone="warning"
+            summary="The sequence was edited after this scan — positions below refer to the old one. Re-run."
+          />
         )}
         {loading && (
           <Progress value={progress * 100} animated striped size="sm" />
@@ -192,7 +193,7 @@ export function OptimizationCard({
                 <MetricLabel
                   label="Baseline Tm (°C)"
                   method="absolute"
-                  tooltip="Absolute Tm of the input protein from the Meltome-trained model_tm. A few point mutations barely move the mean-pooled embedding, so the variant's Tm stays ≈ this value — use ΔΔG for the stabilization effect."
+                  tooltip="Absolute Tm of the input protein (model_tm). Point mutations barely move it, so the variant sits at ≈ this value — use ΔΔG for the effect."
                 />
                 <Text fw={700} size="lg" ff="monospace">
                   {optimization.baseline_tm != null
@@ -204,7 +205,7 @@ export function OptimizationCard({
                 <MetricLabel
                   label="ΔΔG (kcal/mol)"
                   method="derived"
-                  tooltip="Total ΔΔG of the shortlisted mutations from difference-embedding model_ddg. Positive = predicted more resistant to unfolding. It is a folding-stability change, not a predicted Tm shift. Read it as a rank-ordering signal: on held-out data the model's absolute level is biased low, so the magnitude is less trustworthy than the ordering."
+                  tooltip="Total ΔΔG of the shortlisted mutations (model_ddg). Positive = predicted more resistant to unfolding. Trust the ordering more than the magnitude — the absolute level is biased low on held-out data."
                 />
                 <Text fw={700} size="lg" ff="monospace">
                   {optimization.ddg != null ? optimization.ddg.toFixed(2) : "—"}
@@ -217,35 +218,26 @@ export function OptimizationCard({
               </StatPaper>
             </SimpleGrid>
             {optimization.mutations.length === 0 ? (
-              <Alert
-                color="blue"
-                variant="light"
-                title="No stabilizing candidate found — sequence returned unchanged"
-              >
-                <Text size="xs">
-                  {(optimization.scan_summary?.total_candidates ?? 0) === 0 ? (
-                    <>
-                      Every substitution was rejected by the ESM-2 plausibility
-                      guardrail (threshold{" "}
-                      {optimization.scan_summary?.perplexity_threshold ??
-                        perplexityThreshold}
-                      ), so nothing reached the ΔΔG model. Lower the threshold in
-                      settings to widen the scan.
-                    </>
-                  ) : (
-                    <>
-                      The scan scored{" "}
-                      {optimization.scan_summary?.total_candidates ?? 0} plausible
-                      substitutions and none of them was predicted to be stabilizing
-                      (ΔΔG &gt; 0).
-                    </>
-                  )}{" "}
-                  That is why the optimized sequence below is byte-for-byte the input
-                  — it is a result, not a failure. Note the model's absolute level is
-                  biased low, so a bare “nothing found” is weaker evidence than it
-                  looks.
-                </Text>
-              </Alert>
+              <InfoNote summary="No stabilizing candidate found — the sequence is returned unchanged.">
+                {(optimization.scan_summary?.total_candidates ?? 0) === 0 ? (
+                  <>
+                    Every substitution was rejected by the ESM-2 plausibility
+                    guardrail (threshold{" "}
+                    {optimization.scan_summary?.perplexity_threshold ??
+                      perplexityThreshold}
+                    ), so nothing reached the ΔΔG model. Lower the threshold in
+                    settings to widen the scan.
+                  </>
+                ) : (
+                  <>
+                    The scan scored{" "}
+                    {optimization.scan_summary?.total_candidates ?? 0} plausible
+                    substitutions and none was predicted stabilizing (ΔΔG &gt; 0).
+                  </>
+                )}{" "}
+                This is a result, not a failure — but the model's absolute level is
+                biased low, so “nothing found” is weaker evidence than it looks.
+              </InfoNote>
             ) : (
               optimization.scan_summary?.candidates_ddg_positive != null && (
                 <Text size="xs" c="dimmed">

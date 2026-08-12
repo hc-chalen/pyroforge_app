@@ -146,7 +146,6 @@ export function SequenceViewer({
                   color={copied ? "green" : "gray"}
                   onClick={copy}
                   aria-label="Copy as FASTA"
-                  size="sm"
                 >
                   <Text size="9px" fw={700} ff="monospace">
                     {copied ? "✓" : ">_"}

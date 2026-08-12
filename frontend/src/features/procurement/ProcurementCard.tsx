@@ -11,6 +11,8 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
+import { InfoNote } from "@/components/ui/InfoNote";
+import { WithheldNotice } from "@/components/ui/Withheld";
 import {
   SequenceVariantSelector,
   StaleVariantAlert,
@@ -21,6 +23,7 @@ import { procureQuote } from "@/services/procure";
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { OptimizationResult, ProcureResponse } from "@/types/api";
+import { withheldSequence } from "@/utils/answerability";
 import { hasOptimizedVariant } from "@/utils/sequenceVariant";
 
 interface ProcurementCardProps {
@@ -54,6 +57,7 @@ export function ProcurementCard({
       activeSequence,
     );
   const mutationCount = optimization?.mutations.length ?? 0;
+  const inputRefusal = withheldSequence(activeSequence);
 
   async function handleRun() {
     if (!activeSequence) return;
@@ -107,21 +111,25 @@ export function ProcurementCard({
           activeVariant={variant}
           staleReason={staleReason}
         />
+        {inputRefusal?.scope === "step" && (
+          <WithheldNotice withheld={inputRefusal} />
+        )}
         {/* This card ends in a real order. The optimized variant is a model
             shortlist whose top-5 precision is ~74% on held-out proteins and as low
             as 0% on individual ones, so it must not reach a synthesis quote
             without saying so. */}
         {variant === "optimized" && mutationCount > 0 && (
-          <Alert color="orange" variant="light" title="You are quoting a predicted variant" p="xs">
-            <Text size="xs">
-              This sequence carries {mutationCount} unvalidated model-predicted
-              mutation{mutationCount === 1 ? "" : "s"}. The optimizer returns a
-              ranked shortlist for screening — on held-out proteins roughly a
-              quarter of top-5 entries were not stabilizing, and for some proteins
-              none were. Order the wild type alongside it as a control, and treat
-              the quote as costing an experiment rather than confirming a result.
-            </Text>
-          </Alert>
+          <InfoNote
+            tone="warning"
+            summary={`This quote is for ${mutationCount} unvalidated predicted mutation${
+              mutationCount === 1 ? "" : "s"
+            } — order the wild type as a control.`}
+          >
+            The optimizer returns a ranked shortlist for screening: on held-out
+            proteins roughly a quarter of top-5 entries were not stabilizing, and
+            for some proteins none were. The quote buys an experiment, it does not
+            confirm a result.
+          </InfoNote>
         )}
         {displayError && (
           <Alert color="red" title="Error">
@@ -194,7 +202,7 @@ export function ProcurementCard({
           <Button
             onClick={handleRun}
             loading={loading}
-            disabled={!activeSequence || loading}
+            disabled={!activeSequence || loading || inputRefusal != null}
             color="brand"
           >
             Get Quote ({variant})

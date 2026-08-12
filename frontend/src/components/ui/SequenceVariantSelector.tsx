@@ -1,4 +1,5 @@
-import { Alert, Group, SegmentedControl, Text } from "@mantine/core";
+import { Group, SegmentedControl, Text } from "@mantine/core";
+import { InfoNote } from "@/components/ui/InfoNote";
 import type { SequenceVariant } from "@/types/api";
 import { resolveActiveSequence } from "@/utils/sequenceVariant";
 import type { OptimizationResult } from "@/types/api";
@@ -60,21 +61,18 @@ export function StaleVariantAlert({
 }: StaleVariantAlertProps) {
   if (staleReason === "sequence") {
     return (
-      <Alert color="yellow" title="Results are out of date">
-        The sequence has been edited since these results were computed, so they
-        describe the <Text span fw={600}>previous</Text> sequence. Re-run to refresh.
-      </Alert>
+      <InfoNote
+        tone="warning"
+        summary="The sequence was edited after these results — they describe the previous one. Re-run."
+      />
     );
   }
   if (!resultVariant || resultVariant === activeVariant) return null;
 
   return (
-    <Alert color="yellow" title="Results from another variant">
-      These results were computed for the{" "}
-      <Text span fw={600}>
-        {resultVariant === "optimized" ? "optimized" : "original"}
-      </Text>{" "}
-      sequence. Switch variant or re-run to refresh.
-    </Alert>
+    <InfoNote
+      tone="warning"
+      summary={`These results are from the ${resultVariant} sequence. Switch variant or re-run.`}
+    />
   );
 }

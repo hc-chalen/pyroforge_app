@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 import { GitCompare } from "lucide-react";
 import { useState } from "react";
+import { InfoNote } from "@/components/ui/InfoNote";
 import { StatPaper } from "@/components/ui/StatPaper";
 import { compareEmbeddings } from "@/services/embed";
 import type { OptimizationResult, StructureComparison } from "@/types/api";
@@ -84,11 +85,12 @@ export function StructureCompareCard({
             </Badge>
           )}
         </Group>
-        <Text size="sm" c="dimmed">
-          ESM-2 embedding comparison between original and optimized sequences.
-          Higher similarity suggests the variant preserves overall structural
-          semantics; low similarity warrants manual review before wet-lab use.
-        </Text>
+        <InfoNote summary="ESM-2 embedding distance between the original and optimized sequences.">
+          High similarity suggests the variant preserves the protein's overall
+          structural semantics; low similarity warrants manual review before
+          wet-lab use. It is a similarity of representations, not of solved
+          structures.
+        </InfoNote>
         {localError && (
           <Alert color="red" title="Error">
             {localError}
@@ -153,12 +155,6 @@ export function StructureCompareCard({
               <Text fw={700}>{data.l1_distance.toFixed(2)}</Text>
             </StatPaper>
           </SimpleGrid>
-        )}
-        {!data && (
-          <Alert color="blue" variant="light">
-            Run comparison to score how closely the optimized embedding matches
-            the original.
-          </Alert>
         )}
         <Group>
           <Button

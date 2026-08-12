@@ -14,6 +14,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createViewer, type GLViewer } from "3dmol";
 import { CardHeader } from "@/components/ui/CardHeader";
+import { InfoNote } from "@/components/ui/InfoNote";
+import { WithheldNotice } from "@/components/ui/Withheld";
 import {
   SequenceVariantSelector,
   StaleVariantAlert,
@@ -36,6 +38,7 @@ import {
   temperatureRange,
 } from "@/utils/thermalColors";
 import { normalizeRmsfEntries } from "@/utils/normalizeRmsf";
+import { withheldFold } from "@/utils/answerability";
 import { hasOptimizedVariant } from "@/utils/sequenceVariant";
 
 interface ThermalStructureCardProps {
@@ -185,6 +188,7 @@ export function ThermalStructureCard({
   }
 
   const labileCount = thermalResidues.filter((r) => r.labileFraction > 0.5).length;
+  const foldRefusal = withheldFold(activeSequence);
 
   const tmMark = Math.round(baselineTm);
   const sliderMarks = useMemo(() => {
@@ -214,12 +218,7 @@ export function ThermalStructureCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Folded structure with per-residue thermal vulnerability. Raise the
-          temperature to see labile regions shift from cool blue to hot red.
-          ESMFold supports sequences of 10–400 residues. Vulnerability is derived from
-          pLDDT (a structure-confidence score, used here as a flexibility proxy), so
-          read the colours as a relative ordering of fragile regions — the per-residue
-          melt onsets are illustrative, not predicted temperatures.
+          ESMFold structure, coloured by per-residue thermal vulnerability.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -234,11 +233,15 @@ export function ThermalStructureCard({
           activeVariant={variant}
           staleReason={staleReason}
         />
-        {activeSequence.length > 400 && (
-          <Alert color="orange" title="Sequence too long">
-            Your sequence is {activeSequence.length} residues. ESMFold accepts
-            at most 400 — shorten it before folding.
-          </Alert>
+        {foldRefusal?.scope === "step" ? (
+          <WithheldNotice withheld={foldRefusal} />
+        ) : (
+          <InfoNote summary="The colours rank fragile regions; they are not predicted temperatures.">
+            Vulnerability is derived from pLDDT, a structure-confidence score used
+            here as a flexibility proxy. Read the map as a relative ordering of
+            fragile regions — the per-residue melt onsets on the slider are
+            illustrative only.
+          </InfoNote>
         )}
         {loading && (
           <Progress value={progress * 100} animated striped size="sm" />
@@ -344,7 +347,7 @@ export function ThermalStructureCard({
                 {thermalResidues.map((r) => (
                   <div
                     key={r.position}
-                    title={`${r.aa}${r.position}: vulnerability ${(r.vulnerability * 100).toFixed(0)}% · heuristic melt onset ~${r.meltOnset.toFixed(0)}°C (illustrative, not a predicted Tm)`}
+                    title={`${r.aa}${r.position} · vulnerability ${(r.vulnerability * 100).toFixed(0)}% · illustrative onset ~${r.meltOnset.toFixed(0)}°C`}
                     style={{
                       width: 18,
                       height: 18,
@@ -376,8 +379,8 @@ export function ThermalStructureCard({
               <Text size="xs" c="dimmed">
                 {fold.sequence_length} residues · {variant} ·{" "}
                 {tmIsPredicted
-                  ? `predicted Tm ${baselineTm.toFixed(1)}°C`
-                  : `no Tm predicted — colours use a ${FALLBACK_BASELINE_TM}°C reference`}
+                  ? `Tm ${baselineTm.toFixed(1)}°C`
+                  : `no Tm — colours use a ${FALLBACK_BASELINE_TM}°C reference`}
               </Text>
             </Group>
           </Stack>
@@ -386,7 +389,7 @@ export function ThermalStructureCard({
           <Button
             onClick={handleRun}
             loading={loading}
-            disabled={!activeSequence || loading || activeSequence.length > 400}
+            disabled={!activeSequence || loading || foldRefusal != null}
             color="brand"
           >
             Fold & Visualize ({variant})
