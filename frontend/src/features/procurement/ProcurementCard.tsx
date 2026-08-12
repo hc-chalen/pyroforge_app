@@ -53,6 +53,7 @@ export function ProcurementCard({
       "procurement",
       activeSequence,
     );
+  const mutationCount = optimization?.mutations.length ?? 0;
 
   async function handleRun() {
     if (!activeSequence) return;
@@ -106,6 +107,22 @@ export function ProcurementCard({
           activeVariant={variant}
           staleReason={staleReason}
         />
+        {/* This card ends in a real order. The optimized variant is a model
+            shortlist whose top-5 precision is ~74% on held-out proteins and as low
+            as 0% on individual ones, so it must not reach a synthesis quote
+            without saying so. */}
+        {variant === "optimized" && mutationCount > 0 && (
+          <Alert color="orange" variant="light" title="You are quoting a predicted variant" p="xs">
+            <Text size="xs">
+              This sequence carries {mutationCount} unvalidated model-predicted
+              mutation{mutationCount === 1 ? "" : "s"}. The optimizer returns a
+              ranked shortlist for screening — on held-out proteins roughly a
+              quarter of top-5 entries were not stabilizing, and for some proteins
+              none were. Order the wild type alongside it as a control, and treat
+              the quote as costing an experiment rather than confirming a result.
+            </Text>
+          </Alert>
+        )}
         {displayError && (
           <Alert color="red" title="Error">
             {displayError}
@@ -121,6 +138,13 @@ export function ProcurementCard({
                 <Text fw={700} ff="monospace">
                   {procurement.cai.toFixed(3)}
                 </Text>
+                {/* A CAI is meaningless without the reference set it was scored
+                    against, so the two are never shown apart. */}
+                {procurement.cai_reference && (
+                  <Text size="xs" c="dimmed">
+                    vs {procurement.cai_reference}
+                  </Text>
+                )}
               </StatPaper>
               <StatPaper>
                 <Text size="xs" c="dimmed">

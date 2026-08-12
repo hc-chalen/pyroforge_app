@@ -2,47 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections import Counter
-
-# Relative adaptiveness (CAI weights) for E. coli K-12 and S. cerevisiae
-CODON_TABLES: dict[str, dict[str, float]] = {
-    "ecoli": {
-        "TTT": 0.58, "TTC": 1.00, "TTA": 0.14, "TTG": 0.13,
-        "TCT": 0.17, "TCC": 0.15, "TCA": 0.14, "TCG": 0.15,
-        "TAT": 0.59, "TAC": 1.00, "TAA": 0.61, "TAG": 0.02,
-        "TGT": 0.46, "TGC": 1.00, "TGA": 0.52, "TGG": 1.00,
-        "CTT": 0.12, "CTC": 0.10, "CTA": 0.04, "CTG": 1.00,
-        "CCT": 0.18, "CCC": 0.13, "CCA": 0.20, "CCG": 0.49,
-        "CAT": 0.57, "CAC": 1.00, "CAA": 0.34, "CAG": 1.00,
-        "CGT": 0.36, "CGC": 0.36, "CGA": 0.07, "CGG": 0.11,
-        "ATT": 0.43, "ATC": 1.00, "ATA": 0.03, "ATG": 1.00,
-        "ACT": 0.27, "ACC": 1.00, "ACA": 0.17, "ACG": 0.41,
-        "AAT": 0.49, "AAC": 1.00, "AAA": 0.74, "AAG": 1.00,
-        "AGT": 0.16, "AGC": 0.26, "AGA": 0.07, "AGG": 0.04,
-        "GTT": 0.39, "GTC": 0.43, "GTA": 0.17, "GTG": 1.00,
-        "GCT": 0.33, "GCC": 1.00, "GCA": 0.21, "GCG": 0.34,
-        "GAT": 0.63, "GAC": 1.00, "GAA": 0.68, "GAG": 1.00,
-        "GGT": 0.34, "GGC": 0.41, "GGA": 0.10, "GGG": 0.10,
-    },
-    "yeast": {
-        "TTT": 0.56, "TTC": 1.00, "TTA": 0.28, "TTG": 0.27,
-        "TCT": 0.26, "TCC": 0.18, "TCA": 0.20, "TCG": 0.10,
-        "TAT": 0.59, "TAC": 1.00, "TAA": 1.00, "TAG": 0.09,
-        "TGT": 0.46, "TGC": 1.00, "TGA": 0.30, "TGG": 1.00,
-        "CTT": 0.13, "CTC": 0.06, "CTA": 0.14, "CTG": 1.00,
-        "CCT": 0.31, "CCC": 0.12, "CCA": 0.40, "CCG": 0.11,
-        "CAT": 0.65, "CAC": 1.00, "CAA": 0.65, "CAG": 1.00,
-        "CGT": 0.13, "CGC": 0.06, "CGA": 0.04, "CGG": 0.04,
-        "ATT": 0.46, "ATC": 1.00, "ATA": 0.30, "ATG": 1.00,
-        "ACT": 0.35, "ACC": 1.00, "ACA": 0.30, "ACG": 0.17,
-        "AAT": 0.59, "AAC": 1.00, "AAA": 0.70, "AAG": 1.00,
-        "AGT": 0.16, "AGC": 0.11, "AGA": 0.21, "AGG": 0.04,
-        "GTT": 0.39, "GTC": 0.21, "GTA": 0.20, "GTG": 1.00,
-        "GCT": 0.34, "GCC": 1.00, "GCA": 0.40, "GCG": 0.11,
-        "GAT": 0.65, "GAC": 1.00, "GAA": 0.71, "GAG": 1.00,
-        "GGT": 0.47, "GGC": 0.19, "GGA": 0.22, "GGG": 0.12,
-    },
-}
+from dataclasses import dataclass
 
 GENETIC_CODE = {
     "F": ["TTT", "TTC"], "L": ["TTA", "TTG", "CTT", "CTC", "CTA", "CTG"],
@@ -55,6 +15,158 @@ GENETIC_CODE = {
     "A": ["GCT", "GCC", "GCA", "GCG"], "D": ["GAT", "GAC"],
     "E": ["GAA", "GAG"], "G": ["GGT", "GGC", "GGA", "GGG"],
 }
+
+CODON_TO_AA = {c: aa for aa, codons in GENETIC_CODE.items() for c in codons}
+
+# Amino acids whose family has exactly one codon. Their relative adaptiveness is
+# 1.0 by construction, so they carry no information about codon choice and the
+# standard CAI definition excludes them (along with stop codons).
+SINGLE_CODON_AA = frozenset(aa for aa, codons in GENETIC_CODE.items() if len(codons) == 1)
+CAI_EXCLUDED_AA = SINGLE_CODON_AA | {"*"}
+
+
+@dataclass(frozen=True)
+class CodonUsage:
+    """A codon usage table plus the provenance needed to interpret its numbers.
+
+    ``counts`` holds *raw observed codon counts*, not pre-computed weights, and
+    the relative adaptiveness used for CAI is derived from them by
+    :func:`relative_adaptiveness`. That direction matters: the previous tables
+    stored hand-maintained weights in which several synonymous families
+    (Ser, Arg, Gly, Pro) were never normalized to a family maximum of 1.0, so a
+    perfectly codon-optimized gene scored CAI ≈ 0.82 instead of ≈ 1.0. Deriving
+    the weights makes that class of error structurally impossible — see the
+    self-check at the bottom of this module.
+    """
+
+    label: str
+    source: str
+    n_cds: int
+    n_codons: int
+    counts: dict[str, int]
+
+    @property
+    def provenance(self) -> str:
+        return f"{self.label} — {self.source}, {self.n_cds:,} CDS / {self.n_codons:,} codons"
+
+
+# ---------------------------------------------------------------------------
+# Observed codon usage. Values transcribed from the Kazusa Codon Usage Database
+# (https://www.kazusa.or.jp/codon/), which tabulates GenBank CDS codon counts.
+#
+# IMPORTANT — what these are and are not:
+#
+#   * They are *genome-wide* codon usage. Classical CAI (Sharp & Li 1987) scores
+#     against a **highly-expressed gene** reference set, which is a materially
+#     different (and for codon optimization, more useful) target. The CAI this
+#     module reports is therefore "adaptation to the genome-average gene", and
+#     the API labels it as such rather than implying Sharp & Li CAI.
+#   * The E. coli K-12 entry in Kazusa is built from only 14 CDS / 5,122 codons.
+#     It gets the large directional calls right — and notably corrects the table
+#     that used to live here, which marked AAG/GAG/GCC/GTG as E. coli's preferred
+#     codons when E. coli in fact prefers AAA over AAG ~2.7:1 and GAA over GAG
+#     ~2.4:1 (that set of "preferred" codons is the human one). But the sample is
+#     small and it should be replaced by a larger, highly-expressed reference set
+#     before these sequences are ordered. Because the weights are derived, that
+#     is a counts-only change.
+# ---------------------------------------------------------------------------
+CODON_USAGE: dict[str, CodonUsage] = {
+    "ecoli": CodonUsage(
+        label="Escherichia coli K-12",
+        source="Kazusa Codon Usage Database (GenBank CDS)",
+        n_cds=14,
+        n_codons=5_122,
+        counts={
+            "TTT": 101, "TTC": 77, "TTA": 78, "TTG": 61,
+            "TCT": 29, "TCC": 28, "TCA": 40, "TCG": 41,
+            "TAT": 86, "TAC": 75, "TAA": 9, "TAG": 0,
+            "TGT": 30, "TGC": 41, "TGA": 5, "TGG": 55,
+            "CTT": 61, "CTC": 54, "CTA": 27, "CTG": 240,
+            "CCT": 43, "CCC": 33, "CCA": 34, "CCG": 137,
+            "CAT": 81, "CAC": 67, "CAA": 62, "CAG": 142,
+            "CGT": 108, "CGC": 133, "CGA": 22, "CGG": 21,
+            "ATT": 156, "ATC": 93, "ATA": 19, "ATG": 127,
+            "ACT": 41, "ACC": 117, "ACA": 33, "ACG": 59,
+            "AAT": 112, "AAC": 125, "AAA": 170, "AAG": 62,
+            "AGT": 37, "AGC": 85, "AGA": 7, "AGG": 8,
+            "GTT": 86, "GTC": 60, "GTA": 59, "GTG": 135,
+            "GCT": 55, "GCC": 162, "GCA": 108, "GCG": 197,
+            "GAT": 194, "GAC": 105, "GAA": 224, "GAG": 94,
+            "GGT": 109, "GGC": 171, "GGA": 47, "GGG": 44,
+        },
+    ),
+    "yeast": CodonUsage(
+        label="Saccharomyces cerevisiae",
+        source="Kazusa Codon Usage Database (GenBank CDS)",
+        n_cds=14_411,
+        n_codons=6_534_504,
+        counts={
+            "TTT": 170_666, "TTC": 120_510, "TTA": 170_884, "TTG": 177_573,
+            "TCT": 153_557, "TCC": 92_923, "TCA": 122_028, "TCG": 55_951,
+            "TAT": 122_728, "TAC": 96_596, "TAA": 6_913, "TAG": 3_312,
+            "TGT": 52_903, "TGC": 31_095, "TGA": 4_447, "TGG": 67_789,
+            "CTT": 80_076, "CTC": 35_545, "CTA": 87_619, "CTG": 68_494,
+            "CCT": 88_263, "CCC": 44_309, "CCA": 119_641, "CCG": 34_597,
+            "CAT": 89_007, "CAC": 50_785, "CAA": 178_251, "CAG": 79_121,
+            "CGT": 41_791, "CGC": 16_993, "CGA": 19_562, "CGG": 11_351,
+            "ATT": 196_893, "ATC": 112_176, "ATA": 116_254, "ATG": 136_805,
+            "ACT": 132_522, "ACC": 83_207, "ACA": 116_084, "ACG": 52_045,
+            "AAT": 233_124, "AAC": 162_199, "AAA": 273_618, "AAG": 201_361,
+            "AGT": 92_466, "AGC": 63_726, "AGA": 139_081, "AGG": 60_289,
+            "GTT": 144_243, "GTC": 76_947, "GTA": 76_927, "GTG": 70_337,
+            "GCT": 138_358, "GCC": 82_357, "GCA": 105_910, "GCG": 40_358,
+            "GAT": 245_641, "GAC": 132_048, "GAA": 297_944, "GAG": 125_717,
+            "GGT": 156_109, "GGC": 63_903, "GGA": 71_216, "GGG": 39_359,
+        },
+    ),
+}
+
+
+def relative_adaptiveness(counts: dict[str, int]) -> dict[str, float]:
+    """CAI relative adaptiveness ``w`` from raw codon counts.
+
+    ``w(codon) = count(codon) / max(count of any codon in the same synonymous
+    family)``, so every family's best codon is exactly 1.0. That normalization is
+    the *definition* of relative adaptiveness; without it CAI is not on the 0–1
+    scale where 1.0 means "perfectly adapted", which is how every consumer of the
+    number reads it.
+
+    An unobserved codon would make ``log w`` undefined, so zero counts take the
+    conventional 0.5-count floor rather than 0.
+    """
+    weights: dict[str, float] = {}
+    for codons in GENETIC_CODE.values():
+        observed = [counts[c] for c in codons]
+        peak = max(observed)
+        if peak <= 0:  # pragma: no cover - a family with no observations at all
+            weights.update({c: 1.0 for c in codons})
+            continue
+        for codon in codons:
+            n = counts[codon]
+            weights[codon] = (n if n > 0 else 0.5) / peak
+    return weights
+
+
+CODON_TABLES: dict[str, dict[str, float]] = {
+    organism: relative_adaptiveness(usage.counts)
+    for organism, usage in CODON_USAGE.items()
+}
+
+
+def _assert_normalized() -> None:
+    """Guard the invariant the previous hand-maintained tables silently broke."""
+    for organism, table in CODON_TABLES.items():
+        missing = set(CODON_TO_AA) - set(table)
+        assert not missing, f"{organism}: codons missing from table: {sorted(missing)}"
+        for aa, codons in GENETIC_CODE.items():
+            peak = max(table[c] for c in codons)
+            assert abs(peak - 1.0) < 1e-9, (
+                f"{organism}: synonymous family {aa!r} peaks at {peak:.3f}, not 1.0 — "
+                f"relative adaptiveness must be normalized within each family."
+            )
+
+
+_assert_normalized()
 
 
 class CodonOptimizer:
@@ -72,6 +184,21 @@ class CodonOptimizer:
             raise ValueError(
                 f"Unsupported expression organism {organism!r}. "
                 f"Supported: {', '.join(sorted(CODON_TABLES))}."
+            ) from None
+
+    @staticmethod
+    def provenance(organism: str) -> str:
+        """Human-readable description of the reference set ``organism`` scores against.
+
+        Returned alongside the CAI so the number is never shown bare: a CAI is only
+        meaningful relative to a stated reference set.
+        """
+        try:
+            return CODON_USAGE[organism].provenance
+        except KeyError:
+            raise ValueError(
+                f"Unsupported expression organism {organism!r}. "
+                f"Supported: {', '.join(sorted(CODON_USAGE))}."
             ) from None
 
     def optimize(self, protein: str, organism: str = "ecoli") -> str:
@@ -95,16 +222,37 @@ class CodonOptimizer:
             flags.append("homopolymer_run")
         if self._has_hairpin(dna):
             flags.append("potential_hairpin")
-        return {"cai": cai, "gc_content": round(gc, 2), "feasibility_flags": flags}
+        return {
+            "cai": cai,
+            "cai_reference": self.provenance(organism),
+            "gc_content": round(gc, 2),
+            "feasibility_flags": flags,
+        }
 
     def _compute_cai(self, dna: str, organism: str = "ecoli") -> float:
-        # CAI must be scored against the organism the DNA was optimized for;
-        # scoring yeast-optimized DNA with E. coli weights is meaningless.
+        """Codon Adaptation Index: geometric mean of relative adaptiveness.
+
+        Scored against ``organism``'s own table — scoring yeast-optimized DNA with
+        E. coli weights is meaningless.
+
+        Met, Trp and stop codons are excluded, per the standard definition: their
+        families have a single codon (or no coding role), so ``w`` is 1.0 by
+        construction and including them only dilutes the index toward 1 in
+        proportion to how many of them the protein happens to contain.
+        """
         table = self._table(organism)
         weights = []
         for i in range(0, len(dna) - 2, 3):
             codon = dna[i : i + 3]
-            weights.append(table.get(codon, 0.01))
+            aa = CODON_TO_AA.get(codon)
+            if aa is None:
+                # Not a codon at all (e.g. the NNN placeholder for a non-standard
+                # residue). Counting it as "maximally unadapted" would be a silent
+                # judgement about unknown sequence, so skip it.
+                continue
+            if aa in CAI_EXCLUDED_AA:
+                continue
+            weights.append(table[codon])
         if not weights:
             return 0.0
         log_sum = sum(math.log(w) for w in weights) / len(weights)

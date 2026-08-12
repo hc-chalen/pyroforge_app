@@ -26,6 +26,8 @@ class ProcurementEngine:
             "dna_sequence": dna,
             "organism": organism,
             "cai": analysis["cai"],
+            # Never surface a CAI without the reference set it was scored against.
+            "cai_reference": analysis["cai_reference"],
             "gc_content": analysis["gc_content"],
             "feasibility_flags": analysis["feasibility_flags"],
             **twist_quote,
