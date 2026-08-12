@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { clearFoldPdb, setFoldPdb } from "@/store/foldPdbCache";
+import { stripPdbForPersist } from "@/store/persistSanitize";
 import type {
   FoldResult,
   HeatmapResponse,
@@ -370,17 +371,7 @@ export const useAnalysisStore = create<AnalysisState>()(
     {
       name: "pyroforge-analyses",
       partialize: (state) => ({
-        analyses: state.analyses.map((a) => ({
-          ...a,
-          fold: a.fold
-            ? {
-                pdb_path: a.fold.pdb_path,
-                sequence_length: a.fold.sequence_length,
-                rmsf: a.fold.rmsf ?? [],
-                pdb: "",
-              }
-            : undefined,
-        })),
+        analyses: state.analyses.map(stripPdbForPersist),
         selectedId: state.selectedId,
         checkedIds: state.checkedIds,
       }),
