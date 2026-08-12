@@ -28,6 +28,9 @@ pyroforge-train-ddg = "app.training.train_ddg:main"               # model_ddg (s
 pyroforge-ingest-meltome = "app.training.ingest_meltome:main"     # download + ESM2-embed Meltome Atlas
 pyroforge-train-tm = "app.training.train_tm_meltome:main"         # model_tm (served absolute Tm)
 pyroforge-automl-tm = "app.training.automl_tm:main"               # AutoML search → tune/promote model_tm
+# Characterises the shipped model_ddg: fits the level calibration and measures the
+# within-protein ranking quality the optimizer reports. Re-run after train-ddg.
+pyroforge-calibrate-ddg = "app.training.calibrate_ddg:main"       # model_ddg calibration + ranking stats
 # Offline NAS research tooling (feeds the /models/nas-report panel)
 pyroforge-autopytorch = "app.training.autopytorch_tune:main"
 

@@ -102,6 +102,45 @@ class MutationResult(BaseModel):
     target_aa: str
 
 
+class RankedMutation(BaseModel):
+    """One entry of the shortlist, with the evidence behind its position in it."""
+
+    position: int
+    source_aa: str
+    target_aa: str
+    ddg: float = Field(..., description="Predicted ΔΔG for this single substitution")
+    residue_prob: float = Field(
+        ..., description="ESM-2 masked-marginal probability of the substituted residue"
+    )
+    rank: int = Field(..., description="1-based rank within the shortlist")
+
+
+class RankingQuality(BaseModel):
+    """Held-out measurement of what the shortlist ordering is worth.
+
+    Reported with every optimization so the shortlist is never presented as a set
+    of established results. Measured by ``app.training.calibrate_ddg`` on
+    parent-held-out proteins.
+    """
+
+    n_proteins: int | None = None
+    base_rate_stabilizing: float | None = Field(
+        default=None, description="Fraction of all mutations that are truly stabilizing"
+    )
+    median_within_protein_spearman: float | None = None
+    headline_k: int | None = None
+    top_k_precision: dict[str, float] | None = Field(
+        default=None, description="Fraction of the top-k that are truly stabilizing"
+    )
+    headline_precision_ci95: list[float] | None = None
+    headline_precision_min: float | None = None
+    headline_precision_max: float | None = None
+    proteins_below_half_precision: int | None = Field(
+        default=None,
+        description="Proteins where fewer than half the top-k were truly stabilizing",
+    )
+
+
 class OptimizationResultResponse(BaseModel):
     wild_type_sequence: str
     optimized_sequence: str
@@ -111,6 +150,8 @@ class OptimizationResultResponse(BaseModel):
     baseline_tm: float | None = None
     ddg: float
     ddg_ci95: float | None = None
+    mutation_details: list[RankedMutation] = Field(default_factory=list)
+    ranking_quality: RankingQuality | None = None
     scan_summary: dict
 
 
@@ -172,6 +213,14 @@ class ProcureResponse(BaseModel):
     dna_sequence: str
     organism: str
     cai: float
+    cai_reference: str = Field(
+        ...,
+        description=(
+            "The codon usage reference set the CAI was scored against. A CAI is "
+            "only interpretable relative to a stated reference, so it is always "
+            "reported alongside the number."
+        ),
+    )
     gc_content: float = Field(..., description="GC content as a percentage (0–100)")
     feasibility_flags: list[str]
     price_usd: float | None = None

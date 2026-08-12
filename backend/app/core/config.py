@@ -32,14 +32,12 @@ class Settings(BaseSettings):
     max_mutations_default: int = 5
     celery_result_expires: int = 86400
 
-    # Significance gate for mutation selection. A candidate is only kept when its
-    # predicted ΔΔG exceeds this many standard deviations of model_ddg's own
-    # held-out residual, i.e. when the predicted gain is distinguishable from the
-    # model's noise. 0 reproduces the old behaviour (keep any ΔΔG > 0), which lets
-    # the optimizer "stabilize" a protein by selecting noise.
-    ddg_effect_size_sigma: float = 1.96
-    # Fallback ΔΔG threshold (kcal/mol) when the checkpoint carries no residual_std.
-    ddg_min_effect_fallback: float = 0.5
+    # NOTE: ddg_effect_size_sigma / ddg_min_effect_fallback were removed. They
+    # configured a kσ "significance gate" on each candidate mutation, which was a
+    # per-comparison threshold applied to the L×19 candidates of a whole scan — it
+    # did not control the selection bias it was introduced for, and at the shipped
+    # σ it returned nothing at all for 20 of 22 held-out proteins. Selection is now
+    # a ranked top-k shortlist with a sign floor; see OptimizationEngine.
 
     # Length regime the dG/ΔΔG models were actually trained on. Measured on
     # esm2_train.pt: over the 513,689 dG-labelled rows, a lower-bound length proxy

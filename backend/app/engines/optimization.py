@@ -27,6 +27,12 @@ class OptimizationResult:
     baseline_tm: float | None
     ddg: float          # total ΔΔG of the selected set — positive = stabilizing
     ddg_ci95: float | None = None  # ±95% interval on ΔΔG from model_ddg's residual
+    # Per-mutation predicted ΔΔG and rank. The shortlist is a ranking, so the rank
+    # and the individual predictions must travel with it — a bare list of mutations
+    # invites reading every entry as equally established.
+    mutation_details: list[dict] = field(default_factory=list)
+    # Held-out measurement of what this ranking is worth (see calibrate_ddg).
+    ranking_quality: dict | None = None
     scan_summary: dict = field(default_factory=dict)
     # In-process only (raw ESM-2 embeddings, never serialized into the job result):
     # lets the caller run the structure comparison without re-embedding both sequences.
@@ -37,8 +43,26 @@ class OptimizationResult:
 class OptimizationEngine:
     """In silico thermostabilization.
 
-    Site-saturation scan → ESM-2 residue-probability guardrail → significance gate →
-    keep the top-k most *stabilizing* mutations at distinct positions.
+    Site-saturation scan → ESM-2 residue-probability guardrail → rank by predicted
+    ΔΔG → keep the top-k at distinct positions.
+
+    **This produces a ranked shortlist for screening, not a set of established
+    stabilizing mutations.** That distinction is the whole design. Measured on
+    parent-held-out proteins (``app.training.calibrate_ddg``), model_ddg ranks well
+    within a protein — median Spearman ≈ 0.76, and 74% of top-5 shortlists are truly
+    stabilizing against a 22% base rate — but per protein that precision ranges from
+    0% to 100%, and it is below 50% for 5 of the 22 proteins measured. So the
+    shortlist is worth screening and is not worth trusting item by item, and the
+    result carries those numbers so the caller can say so too.
+
+    An earlier design instead required each candidate to clear
+    ``ddg_effect_size_sigma`` × the model's residual σ, described as proving the
+    candidate was "distinguishable from noise". That was wrong twice over: a kσ
+    threshold is a per-comparison claim being applied to the L×19 candidates of a
+    full scan, so it does not control the selection bias it was introduced for; and
+    at the shipped σ it sat so far above the prediction range that it returned
+    nothing for 20 of 22 held-out proteins. The feature was inert, and where it did
+    fire it was not making the claim it advertised.
 
     **What the objective is, and is not.** The ranked signal is ΔΔG: the change in
     *folding free energy*, from the Tsuboyama 2023 small-designed-domain assay. The
@@ -49,10 +73,13 @@ class OptimizationEngine:
     "predicted more stable to unfolding", not as a predicted Tm gain. Only the
     wild-type baseline Tm is reported; no variant Tm is claimed.
 
-    **Significance gate.** Candidates must clear ``settings.ddg_effect_size_sigma``
-    standard deviations of model_ddg's own held-out residual, so the tool cannot
-    report a stabilizing variant whose entire predicted gain sits inside the model's
-    noise band. Returning zero mutations is a valid, honest outcome.
+    **Level vs rank.** model_ddg's absolute output is biased low: on held-out data
+    it predicts ΔΔG > 0 for ~6% of mutations where ~24% are truly stabilizing. A
+    linear recalibration was fitted to correct that and deliberately *not* shipped —
+    the measured slope is within noise of 1.0 and it did not improve error on an
+    independent file (see ``calibration.applied_reason``). So the reported kcal/mol
+    is a rank-ordering signal whose absolute level should be read conservatively,
+    which is what the ±95% interval and the copy in the UI say.
     """
 
     def __init__(
@@ -138,23 +165,14 @@ class OptimizationEngine:
         rs = (self.prediction.store.ddg_residual_std or {}).get("ddg")
         return None if rs is None else 1.96 * float(rs)
 
-    def min_effect_threshold(self) -> float:
-        """Smallest ΔΔG that is distinguishable from model_ddg's own noise.
+    def ranking_quality(self) -> dict | None:
+        """Measured within-protein ranking quality, or ``None`` if never measured.
 
-        ``ddg_effect_size_sigma`` × the model's held-out residual σ. A candidate below
-        this is not evidence of stabilization, however positive it looks: for the
-        shipped checkpoint σ = 0.776 kcal/mol, so the default 1.96σ gate is
-        1.52 kcal/mol — and the model's *positional* spread is only ≈0.31 kcal/mol,
-        so most raw ΔΔG > 0 candidates are noise. Set the sigma to 0 to restore the
-        old keep-anything-positive behaviour.
+        Produced by ``app.training.calibrate_ddg`` on parent-held-out proteins. This
+        is what the optimizer's shortlist is actually worth, and it is reported to
+        the user instead of a statistical claim about individual candidates.
         """
-        sigma = settings.ddg_effect_size_sigma
-        if sigma <= 0:
-            return 0.0
-        rs = (self.prediction.store.ddg_residual_std or {}).get("ddg")
-        if rs is None:
-            return settings.ddg_min_effect_fallback
-        return sigma * float(rs)
+        return self.prediction.store.ddg_ranking
 
     def greedy_select(
         self,
@@ -162,16 +180,23 @@ class OptimizationEngine:
         max_mutations: int,
         min_score: float = 0.0,
     ) -> list[Mutation]:
-        """Take up to ``max_mutations`` *stabilizing* mutations at distinct positions.
+        """Take the top ``max_mutations`` ranked mutations at distinct positions.
 
-        Only mutations whose score exceeds ``min_score`` are selected. Callers should
-        pass :meth:`min_effect_threshold` so the cut is at the model's noise floor
-        rather than at 0 — a bare ΔΔG > 0 test admits candidates whose predicted gain
-        is smaller than the model's own uncertainty. The objective is
-        thermostabilization, so the tool must never pad the set with mutations it
-        cannot distinguish from noise just to reach ``max_mutations``. When fewer
-        than ``max_mutations`` candidates clear the bar, fewer are returned (possibly
-        none, leaving the wild-type unchanged — a valid outcome, not a failure).
+        ``min_score`` is a *sign floor*, not a significance test: a candidate the
+        model predicts to be destabilizing must never be offered as a stabilizing
+        one, so the default cut is at 0. It is deliberately not set to a multiple of
+        the model's residual σ — that was the previous design, and it was wrong in
+        two ways. A kσ threshold is a per-comparison claim applied to the L×19
+        candidates of a whole scan, so it does not control the selection bias it was
+        meant to; and empirically it was so far above the prediction range that it
+        returned nothing at all for 20 of 22 held-out proteins, making the feature
+        inert rather than conservative.
+
+        What the held-out measurement does support is *ranking*: median
+        within-protein Spearman ≈ 0.76, and 74% of top-5 shortlists are truly
+        stabilizing against a 22% base rate. So the tool ranks and hands back a
+        shortlist, and reports that measured quality rather than implying each
+        candidate is individually established.
 
         Selection assumes single-mutation ΔΔG effects are additive (no re-scoring of
         the growing set), so it can miss epistasis between chosen positions. The final
@@ -221,11 +246,10 @@ class OptimizationEngine:
         candidates = self.saturation_scan(
             seq, perplexity_threshold, progress_callback, wt_emb=wt_emb
         )
-        # Cut at model_ddg's noise floor, not at 0 — see min_effect_threshold.
-        min_effect = self.min_effect_threshold()
-        selected = self.greedy_select(candidates, max_mut, min_score=min_effect)
+        # Sign floor only — see greedy_select for why the old kσ gate was removed.
+        selected = self.greedy_select(candidates, max_mut, min_score=0.0)
         n_positive = sum(1 for c in candidates if c.score > 0.0)
-        n_significant = sum(1 for c in candidates if c.score > min_effect)
+        by_position = {(c.position, c.target_aa): c for c in candidates}
         optimized = esm2.apply_mutations(
             seq, [(m.position, m.source_aa, m.target_aa) for m in selected]
         )
@@ -257,17 +281,23 @@ class OptimizationEngine:
             baseline_tm=baseline_tm,
             ddg=ddg_value,
             ddg_ci95=self.ddg_ci95(),
+            mutation_details=[
+                {
+                    "position": m.position,
+                    "source_aa": m.source_aa,
+                    "target_aa": m.target_aa,
+                    "ddg": by_position[(m.position, m.target_aa)].ddg,
+                    "residue_prob": by_position[(m.position, m.target_aa)].residue_prob,
+                    "rank": i + 1,
+                }
+                for i, m in enumerate(selected)
+            ],
+            ranking_quality=self.ranking_quality(),
             scan_summary={
                 "total_candidates": len(candidates),
                 "selected_mutations": len(selected),
                 "perplexity_threshold": perplexity_threshold or settings.perplexity_threshold,
-                # Significance accounting, so the gap between "looks positive" and
-                # "is distinguishable from noise" is visible in the result.
-                "min_ddg_effect": min_effect,
-                "effect_size_sigma": settings.ddg_effect_size_sigma,
                 "candidates_ddg_positive": n_positive,
-                "candidates_above_noise": n_significant,
-                "candidates_positive_but_within_noise": n_positive - n_significant,
             },
             wt_embedding=wt_emb,
             variant_embedding=variant_emb,

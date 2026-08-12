@@ -32,12 +32,37 @@ export interface ScanSummary {
   total_candidates?: number;
   selected_mutations?: number;
   perplexity_threshold?: number;
-  /** ΔΔG a candidate must exceed to be distinguishable from model_ddg's noise. */
-  min_ddg_effect?: number;
-  effect_size_sigma?: number;
   candidates_ddg_positive?: number;
-  candidates_above_noise?: number;
-  candidates_positive_but_within_noise?: number;
+}
+
+/** One shortlist entry, with the evidence behind its position in the ranking. */
+export interface RankedMutation {
+  position: number;
+  source_aa: string;
+  target_aa: string;
+  ddg: number;
+  residue_prob: number;
+  rank: number;
+}
+
+/**
+ * Held-out measurement of what the shortlist ordering is worth.
+ *
+ * The optimizer returns a *ranking*, not a set of established results, so this
+ * travels with every optimization and the UI quotes it verbatim. `top_k_precision`
+ * is the fraction of a top-k shortlist that is truly stabilizing, directly
+ * comparable to `base_rate_stabilizing`.
+ */
+export interface RankingQuality {
+  n_proteins?: number;
+  base_rate_stabilizing?: number;
+  median_within_protein_spearman?: number;
+  headline_k?: number;
+  top_k_precision?: Record<string, number>;
+  headline_precision_ci95?: [number, number] | number[];
+  headline_precision_min?: number;
+  headline_precision_max?: number;
+  proteins_below_half_precision?: number;
 }
 
 export interface OptimizeRequest {
@@ -90,6 +115,8 @@ export interface OptimizationResult {
   baseline_tm: number | null;
   ddg: number;
   ddg_ci95?: number | null;
+  mutation_details?: RankedMutation[];
+  ranking_quality?: RankingQuality | null;
   scan_summary: ScanSummary;
   structure_comparison?: StructureComparison;
 }
@@ -193,6 +220,8 @@ export interface ProcureResponse {
   dna_sequence: string;
   organism: string;
   cai: number;
+  /** The codon usage reference set the CAI was scored against. */
+  cai_reference: string;
   gc_content: number;
   feasibility_flags: string[];
   price_usd?: number;

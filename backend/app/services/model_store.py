@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -39,6 +40,12 @@ class ModelStore:
         self.thermo_residual_std: dict | None = None
         self.model_ddg: DeltaMLP | None = None
         self.ddg_residual_std: dict | None = None
+        # Fitted by app.training.calibrate_ddg on the parent-held-out split.
+        self.ddg_calibration: dict | None = None
+        # Measured top-k ranking precision — what the optimizer's shortlist is
+        # actually worth, reported to the user in place of a σ claim.
+        self.ddg_ranking: dict | None = None
+        self.ddg_ranking_source: str | None = None
         self.model_tm = None  # app.models.tm_regressor.TmRegressor (reliable abs Tm)
         self.tm_residual_std: float | None = None
         self.tm_length_range: tuple[int, int] | None = None
@@ -82,6 +89,7 @@ class ModelStore:
             # Using model_thermo's instead silently shifts every ΔΔG feature the
             # moment the two are trained on different data or seeds, with no error.
             self.ddg_norm_stats = ckpt_ddg.get("norm_stats") or self.norm_stats
+            self._load_ddg_calibration(checkpoint_dir)
             self.norm_stats_match = self._stats_match(self.norm_stats, self.ddg_norm_stats)
             if not self.norm_stats_match:
                 logger.warning(
@@ -112,6 +120,55 @@ class ModelStore:
                 ckpt_tm.get("train_length_range") or (MELTOME_TM_MIN_LEN, MELTOME_TM_MAX_LEN)
             )
         self._loaded = True
+
+    def _load_ddg_calibration(self, checkpoint_dir: Path) -> None:
+        """Load ``model_ddg_calibration.json`` (see app.training.calibrate_ddg).
+
+        Carries two things the raw checkpoint cannot: whether a level
+        recalibration is warranted (measured, and currently it is not), and the
+        *measured* within-protein ranking quality that the optimizer reports to
+        the user in place of the retired significance-gate claim.
+        """
+        path = checkpoint_dir / "model_ddg_calibration.json"
+        if not path.exists():
+            logger.warning(
+                "No model_ddg_calibration.json in %s — the optimizer will report no "
+                "measured ranking quality. Run `uv run pyroforge-calibrate-ddg`.",
+                checkpoint_dir,
+            )
+            return
+        try:
+            report = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            logger.exception("model_ddg_calibration.json is not valid JSON; ignoring it.")
+            return
+
+        cal = report.get("calibration") or {}
+        if cal.get("applied") and "slope" in cal:
+            self.ddg_calibration = {
+                "slope": float(cal["slope"]),
+                "intercept": float(cal["intercept"]),
+            }
+        # The residual measured around whichever prediction is actually served
+        # supersedes the checkpoint's, which predates the calibration fit.
+        residual = cal.get("residual_std" if cal.get("applied") else "raw_residual_std")
+        if residual is not None:
+            self.ddg_residual_std = {"ddg": float(residual)}
+        self.ddg_ranking = report.get("validation_ranking")
+        self.ddg_ranking_source = (report.get("split") or {}).get("split_method")
+
+    def calibrate_ddg(self, value):
+        """Apply the served ΔΔG level calibration, if one was found to be warranted.
+
+        Accepts a float or an array. Identity when no calibration is applied —
+        which is the current measured state: the fitted slope sits within noise of
+        1.0, so there is no over-dispersion to correct and applying it would only
+        add an unauditable transformation. See ``calibration.applied_reason``.
+        """
+        cal = self.ddg_calibration
+        if not cal:
+            return value
+        return cal["slope"] * value + cal["intercept"]
 
     @staticmethod
     def _stats_match(a: dict | None, b: dict | None) -> bool:

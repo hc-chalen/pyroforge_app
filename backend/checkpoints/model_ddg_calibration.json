@@ -1,0 +1,98 @@
+{
+  "model": "model_ddg",
+  "calibration": {
+    "slope": 1.095161139879617,
+    "intercept": -0.0927502032207634,
+    "residual_std": 0.7724081685178588,
+    "raw_residual_std": 0.7763294577598572,
+    "n": 39264,
+    "pearson_r": 0.7577194571495056,
+    "applied": false,
+    "applied_reason": "not applied: fitted slope 1.095 is within noise of 1.0 (no over-dispersion to shrink) and it does not improve error on the independent file (MAE 0.591 raw vs 0.676 calibrated). Ranking, not level, is what the optimizer consumes."
+  },
+  "validation_ranking": {
+    "n_proteins": 22,
+    "min_mutations_per_protein": 20,
+    "base_rate_stabilizing": 0.2172027891287873,
+    "median_within_protein_spearman": 0.7603292431946016,
+    "top_k_precision": {
+      "1": 0.8636363636363636,
+      "3": 0.7424242424242423,
+      "5": 0.7363636363636364,
+      "10": 0.7272727272727274
+    },
+    "top_k_median_true_ddg": {
+      "1": 0.5437462329864502,
+      "3": 0.38201507925987244,
+      "5": 0.37662260234355927,
+      "10": 0.470545157790184
+    },
+    "headline_k": 5,
+    "headline_precision_ci95": [
+      0.6090909090909091,
+      0.8454545454545457
+    ],
+    "headline_precision_min": 0.0,
+    "headline_precision_max": 1.0,
+    "proteins_below_half_precision": 5,
+    "median_candidates_predicted_positive": 89.0,
+    "proteins_with_no_positive_candidate": 0,
+    "legacy_gate": {
+      "threshold": 1.5216057372093201,
+      "proteins_returning_any_mutation": 2
+    }
+  },
+  "test_check": {
+    "n": 2676,
+    "n_proteins": 4,
+    "raw_mae": 0.5908383131027222,
+    "calibrated_mae": 0.6762738823890686,
+    "raw_frac_predicted_positive": 0.05754857997010463,
+    "calibrated_frac_predicted_positive": 0.045216741405082216,
+    "true_frac_positive": 0.2406576980568012,
+    "ranking": {
+      "n_proteins": 2,
+      "min_mutations_per_protein": 20,
+      "base_rate_stabilizing": 0.531838452947195,
+      "median_within_protein_spearman": 0.12255455650588704,
+      "top_k_precision": {
+        "1": 0.0,
+        "3": 0.3333333333333333,
+        "5": 0.3,
+        "10": 0.35
+      },
+      "top_k_median_true_ddg": {
+        "1": -2.1449999809265137,
+        "3": -1.6262499690055847,
+        "5": -1.6716667041182518,
+        "10": -1.2864999324083328
+      },
+      "headline_k": 5,
+      "headline_precision_ci95": [
+        0.0,
+        0.6
+      ],
+      "headline_precision_min": 0.0,
+      "headline_precision_max": 0.6,
+      "proteins_below_half_precision": 1,
+      "median_candidates_predicted_positive": 70.0,
+      "proteins_with_no_positive_candidate": 0,
+      "legacy_gate": {
+        "threshold": 1.5216057372093201,
+        "proteins_returning_any_mutation": 1
+      }
+    },
+    "caveat": "esm2_test.pt carries only 4 parent proteins and 98% of its rows belong to one of them, so protein-level statistics from this file are not usable. It is kept as a sanity check on the level, not the ranking."
+  },
+  "split": {
+    "split_method": "parent_group_validation:parent_protein_ids",
+    "seed": 42,
+    "train_rows": 494370,
+    "val_rows": 49995,
+    "test_rows": 0,
+    "train_parent_count": 449,
+    "val_parent_count": 50,
+    "total_parent_count": 499
+  },
+  "notes": "A slope below 1 would have meant the raw predictions are over-dispersed and extreme ones should be shrunk toward the mean (the winner's-curse correction for ranking L*19 candidates and keeping the largest). The measured slope is not below 1, so no shrinkage is warranted and none is applied \u2014 see calibration.applied_reason. What the measurement does establish is that the model RANKS well within a protein while its absolute level is biased low, which is why the optimizer selects by rank with a sign floor rather than by an absolute significance threshold."
+}
