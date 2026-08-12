@@ -7,8 +7,22 @@
 # instead, pass only the base file: `docker compose -f docker-compose.yml up`.
 # ---------------------------------------------------------------------------
 services:
+  redis:
+    # Published for dev only. The base (production) file deliberately does not
+    # publish it — it is the Celery broker and has no auth. Needed here by the
+    # no-Docker workflow in the README, where uvicorn/celery run on the host and
+    # connect to redis://localhost:6379.
+    ports:
+      - "127.0.0.1:6379:6379"
+
   backend:
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Published for dev only: the Vite dev server below talks to the API
+    # cross-origin at http://localhost:8000 instead of through the nginx proxy,
+    # which does not run in this stack. In production the API is reachable only
+    # via the frontend proxy — see docker-compose.yml.
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       # Live source for hot reload; the anonymous volume preserves the
       # container-built virtualenv from being shadowed by the host mount.

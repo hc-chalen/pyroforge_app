@@ -17,11 +17,12 @@
 services:
   redis:
     image: redis:7-alpine
-    # Bind to loopback only: Redis has no auth and must not be reachable from the
-    # (shared) network. Containers still reach it as `redis:6379` on the compose
-    # network. Comment out entirely to not publish it on the host at all.
-    ports:
-      - "127.0.0.1:6379:6379"
+    # NOT published on the host at all. Redis has no auth, and this is also the
+    # Celery broker: anything that can reach it can push arbitrary task payloads
+    # to the worker. Even 127.0.0.1 is too much on a shared machine, where every
+    # other account on the box is "localhost". Containers reach it as
+    # `redis:6379` over the compose network, which is unaffected.
+    # To inspect it: docker compose exec redis redis-cli
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -31,11 +32,12 @@ services:
   backend:
     build: ./backend
     command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
-    # Loopback only: with the same-origin nginx proxy the browser never hits the
-    # backend directly, so it need not be exposed to the shared network. Kept on
-    # 127.0.0.1 for local debugging on the server (curl localhost:8000/health).
-    ports:
-      - "127.0.0.1:8000:8000"
+    # NOT published on the host. The browser reaches the API through the frontend
+    # nginx proxy, which is also where the rate limits and the /admin/train block
+    # live — publishing 8000, even on 127.0.0.1, hands every local account on the
+    # server an unthrottled way around all of it.
+    # To debug: docker compose exec backend curl -s localhost:8000/health
+    # To retrain: docker compose exec backend curl -X POST localhost:8000/api/v1/admin/train
     environment:
       REDIS_URL: redis://redis:6379/0
       # Training data path. Serving never reads it — that needs only the
