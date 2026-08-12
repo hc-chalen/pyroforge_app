@@ -27,10 +27,6 @@ services:
     # !override replaces the base port list instead of appending to it. In dev
     # the container runs Vite on 5173, so the base file's ":80" mapping would
     # just publish a dead host port alongside it.
-    #
-    # NOTE: the dev stack has NO login page — the auth gateway lives in
-    # docker-compose.auth.yml, which is not auto-merged. That is intentional.
-    # See docs/OPERATIONS.md to run the gate locally.
     ports: !override
       - "5173:5173"
     environment:

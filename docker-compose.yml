@@ -104,18 +104,13 @@ services:
         # frontend nginx to the backend. No CORS, no mixed content, backend need
         # not be publicly exposed. Override only for a cross-origin setup.
         VITE_API_URL: ${VITE_API_URL:-}
-    # Loopback only: during the trial deployment the public port 3002 belongs to
-    # the auth-gateway (docker-compose.auth.yml), which proxies here after
-    # checking the session. Publishing this on 0.0.0.0 would route around the
-    # login page entirely. :3001 stays available for debugging on the server.
-    # WHEN THE LOGIN LAYER IS REMOVED: change this back to "3002:80".
+    # Public entrypoint of the whole stack: the SPA, which also proxies /api/ to
+    # the backend so the backend itself need not be exposed.
     ports:
-      - "127.0.0.1:3001:80"
+      - "3002:80"
     depends_on:
       backend:
         condition: service_healthy
 
-# NOTE: public entrypoint is host port 3002 (school-server deployment) — served
-# by auth-gateway while the login overlay is in use, by frontend once it is not.
 volumes:
   pyroforge-cache:

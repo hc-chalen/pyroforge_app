@@ -51,9 +51,3 @@ Desktop.ini
 !/release/MANIFEST.json
 
 .cursor/
-# --- Access gate (temporary trial login layer — see docs/OPERATIONS.md) ---
-# Real account hashes, never committed.
-auth/users.yml
-
-# --- Usage logs written by the auth gateway ---
-logs/
