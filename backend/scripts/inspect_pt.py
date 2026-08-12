@@ -8,7 +8,7 @@ Covers:
 Examples::
 
   uv run python scripts/inspect_pt.py
-  uv run python scripts/inspect_pt.py ../esm2_50k.pt checkpoints/model_ddg.pt
+  uv run python scripts/inspect_pt.py ../esm2_test.pt checkpoints/model_ddg.pt
   uv run python scripts/inspect_pt.py --json ../esm2_test.pt
 """
 
@@ -25,7 +25,6 @@ import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PATHS = [
-    REPO_ROOT / "esm2_50k.pt",
     REPO_ROOT / "esm2_train.pt",
     REPO_ROOT / "esm2_test.pt",
     REPO_ROOT / "backend" / "checkpoints" / "model_thermo.pt",

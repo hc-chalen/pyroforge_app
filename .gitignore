@@ -25,8 +25,8 @@ Desktop.ini
 
 # ---------------------------------------------------------------------------
 # Large ML data / embeddings (NOT stored in git — too large for GitHub/LFS)
-# Regenerate via the backend embedding scripts or download from shared storage.
-#   esm2_train.pt (~2.7 GB), esm2_50k.pt (~250 MB), esm2_test.pt (~107 MB)
+# Archived on Zenodo instead; see DATA.md for the DOIs and column provenance.
+#   esm2_train.pt (~2.9 GB), esm2_test.pt (~107 MB)
 # ---------------------------------------------------------------------------
 *.pt
 *.pth
@@ -42,6 +42,13 @@ Desktop.ini
 
 # Precomputed ESM2 embeddings at repo root
 /esm2_*.pt
+
+# ---------------------------------------------------------------------------
+# Zenodo upload staging — rebuilt by backend/scripts/export_public_dataset.py.
+# ~3 GB of derived copies; only the checksum manifest is worth tracking.
+# ---------------------------------------------------------------------------
+/release/*
+!/release/MANIFEST.json
 
 .cursor/
 # --- Access gate (temporary trial login layer — see docs/OPERATIONS.md) ---

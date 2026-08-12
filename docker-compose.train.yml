@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# PyroForge — training overlay
+#
+# Mounts the embedding dataset so the containers can retrain. Serving does not
+# need this: the base stack ships the trained checkpoints, and mounting a ~2.9 GB
+# file it never reads only slows startup and breaks a fresh clone (Docker
+# silently creates an empty *directory* when a bind-mount source is missing).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.train.yml up
+#
+# The dataset must carry the `parent_protein_ids` column, or the leakage-free
+# parent-group split cannot be built and training fails with an explicit error.
+# esm2_train.pt and esm2_train_public.pt both carry it; the retired esm2_50k.pt
+# subset does not.
+#
+# Point TRAIN_DATA at a different file if needed:
+#   TRAIN_DATA=./release/esm2_train_public.pt docker compose -f ... up
+#
+# Datasets are archived on Zenodo — see DATA.md.
+# ---------------------------------------------------------------------------
+services:
+  backend:
+    volumes:
+      - ${TRAIN_DATA:-./esm2_train.pt}:/data/esm2_train.pt:ro
+      - ${TEST_DATA:-./esm2_test.pt}:/data/esm2_test.pt:ro
+    environment:
+      DATA_PATH: /data/esm2_train.pt
+      TEST_DATA_PATH: /data/esm2_test.pt
+
+  celery-worker:
+    volumes:
+      - ${TRAIN_DATA:-./esm2_train.pt}:/data/esm2_train.pt:ro
+      - ${TEST_DATA:-./esm2_test.pt}:/data/esm2_test.pt:ro
+    environment:
+      DATA_PATH: /data/esm2_train.pt
+      TEST_DATA_PATH: /data/esm2_test.pt

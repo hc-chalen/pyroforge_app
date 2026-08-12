@@ -38,12 +38,12 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
-      # Training data path. NOTE: esm2_50k.pt has no `parent_protein_ids`
-      # column, so POST /api/v1/admin/train cannot build a leakage-free
-      # parent-group split from it and will fail with a clear error. Mount
-      # esm2_train.pt and point DATA_PATH at it to retrain in Docker; serving
-      # only needs the checkpoints, not this file.
-      DATA_PATH: ${DATA_PATH:-/data/esm2_50k.pt}
+      # Training data path. Serving never reads it — that needs only the
+      # checkpoints — so the base stack mounts no dataset and this path is
+      # expected to be absent. To retrain in Docker (POST /api/v1/admin/train)
+      # add the training overlay, which mounts esm2_train.pt here:
+      #   docker compose -f docker-compose.yml -f docker-compose.train.yml up
+      DATA_PATH: ${DATA_PATH:-/data/esm2_train.pt}
       CHECKPOINT_DIR: /app/checkpoints
       # CPU by default (correct on any host; required on Apple Silicon — ESM-2 is
       # degenerate on MPS). Set DEVICE=cuda on a GPU host, ideally with the
@@ -59,7 +59,6 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./esm2_50k.pt:/data/esm2_50k.pt:ro
       - ./backend/checkpoints:/app/checkpoints
       - pyroforge-cache:/app/cache
       # Reuse host ESM-2 weights so Docker does not re-download ~2.5 GB.
@@ -77,12 +76,12 @@ services:
     command: uv run celery -A app.core.celery_app worker --loglevel=info --pool=solo --concurrency=1
     environment:
       REDIS_URL: redis://redis:6379/0
-      # Training data path. NOTE: esm2_50k.pt has no `parent_protein_ids`
-      # column, so POST /api/v1/admin/train cannot build a leakage-free
-      # parent-group split from it and will fail with a clear error. Mount
-      # esm2_train.pt and point DATA_PATH at it to retrain in Docker; serving
-      # only needs the checkpoints, not this file.
-      DATA_PATH: ${DATA_PATH:-/data/esm2_50k.pt}
+      # Training data path. Serving never reads it — that needs only the
+      # checkpoints — so the base stack mounts no dataset and this path is
+      # expected to be absent. To retrain in Docker (POST /api/v1/admin/train)
+      # add the training overlay, which mounts esm2_train.pt here:
+      #   docker compose -f docker-compose.yml -f docker-compose.train.yml up
+      DATA_PATH: ${DATA_PATH:-/data/esm2_train.pt}
       CHECKPOINT_DIR: /app/checkpoints
       DEVICE: ${DEVICE:-cpu}
       TORCH_HOME: /app/cache/torch
@@ -92,7 +91,6 @@ services:
       backend:
         condition: service_healthy
     volumes:
-      - ./esm2_50k.pt:/data/esm2_50k.pt:ro
       - ./backend/checkpoints:/app/checkpoints
       - pyroforge-cache:/app/cache
       - ${HOME}/.cache/torch:/app/cache/torch

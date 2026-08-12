@@ -1,0 +1,138 @@
+{
+  "data_record": [
+    {
+      "source": "/Users/ericali/Documents/pyroforge_app/esm2_train.pt",
+      "dest": "/Users/ericali/Documents/pyroforge_app/release/esm2_train_public.pt",
+      "rows": 544365,
+      "src_bytes": 2862278306,
+      "dest_bytes": 2840503439,
+      "kept_structure": [
+        "embeddings",
+        "mutant_ids",
+        "parent_protein_ids",
+        "source_sequence_ids",
+        "target_sequence_ids",
+        "num_substitutions",
+        "num_insertions",
+        "num_deletions",
+        "mutation_positions",
+        "mutation_source_aa",
+        "mutation_target_aa"
+      ],
+      "kept_labels": [
+        "ddg",
+        "dg",
+        "tm",
+        "trypsin_ml",
+        "chymotrypsin_ml"
+      ],
+      "dropped": [
+        "dtm",
+        "cm",
+        "m",
+        "dh",
+        "dhvh",
+        "dcp",
+        "domainome_ddg",
+        "domainome_ddg_std",
+        "domainome_fitness",
+        "domainome_fitness_std"
+      ],
+      "missing_expected": [],
+      "unexpected_left_behind": [],
+      "sha256": "50da11bf2c14cfb139bbdf528795be024ed9938e8f11d4d2e950566dad94937e"
+    },
+    {
+      "source": "/Users/ericali/Documents/pyroforge_app/esm2_test.pt",
+      "dest": "/Users/ericali/Documents/pyroforge_app/release/esm2_test_public.pt",
+      "rows": 21325,
+      "src_bytes": 112133892,
+      "dest_bytes": 111280633,
+      "kept_structure": [
+        "embeddings",
+        "mutant_ids",
+        "parent_protein_ids",
+        "source_sequence_ids",
+        "target_sequence_ids",
+        "num_substitutions",
+        "num_insertions",
+        "num_deletions",
+        "mutation_positions",
+        "mutation_source_aa",
+        "mutation_target_aa"
+      ],
+      "kept_labels": [
+        "ddg",
+        "dg",
+        "tm",
+        "trypsin_ml",
+        "chymotrypsin_ml"
+      ],
+      "dropped": [
+        "dtm",
+        "cm",
+        "m",
+        "dh",
+        "dhvh",
+        "dcp",
+        "domainome_ddg",
+        "domainome_ddg_std",
+        "domainome_fitness",
+        "domainome_fitness_std"
+      ],
+      "missing_expected": [],
+      "unexpected_left_behind": [],
+      "sha256": "a8781699779906723f2550387b44aab5f358060233cc9bc5623b9947d5d25c62"
+    }
+  ],
+  "model_record": [
+    {
+      "dest": "models/model_ddg.pt",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/model_ddg.pt",
+      "bytes": 3219938,
+      "sha256": "a5c8dbf5874caa761b00ef4ab7ba0c7be645049c42f307e9d840c92d3b3683be"
+    },
+    {
+      "dest": "models/model_thermo.pt",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/model_thermo.pt",
+      "bytes": 6826395,
+      "sha256": "b9e047731bb83d7833d0af97865a547ab6fae5bee5576f2679b4a1eb3a17f677"
+    },
+    {
+      "dest": "models/model_tm.joblib",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/improved/model_tm.joblib",
+      "bytes": 1139362,
+      "sha256": "e205ee9f61c080d3a770c5940d7b65aeea76fa8e41ae05cecfd7251aedc498d6"
+    },
+    {
+      "dest": "models/tm_report.json",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/improved/tm_report.json",
+      "bytes": 496,
+      "sha256": "644a8281d5f2a0c6776110eb66aa165babaa404dfc15b4cc4da7c6115039f675"
+    },
+    {
+      "dest": "models/all_models_metrics.json",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/plots/all_models_metrics.json",
+      "bytes": 1069,
+      "sha256": "db4dd7e2e265052a1952c223c0318882021c42623c00607db2b22770d8330765"
+    },
+    {
+      "dest": "models/all_models_scorecard.md",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/plots/all_models_scorecard.md",
+      "bytes": 1190,
+      "sha256": "56a426fddb5a5d5c66f8b60bdc93f9c39882bc9b5a73d013780aba218ad0845c"
+    },
+    {
+      "dest": "models/autopytorch_report.json",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/autopytorch/autopytorch_report.json",
+      "bytes": 2272,
+      "sha256": "d4f2190b3b7deece3927e6b8d306be4f8aa316b0bec090fb96c2d2a7b9bd7d1d"
+    },
+    {
+      "dest": "meltome_tm.npz",
+      "source": "/Users/ericali/Documents/pyroforge_app/backend/checkpoints/improved/meltome_tm.npz",
+      "bytes": 26409214,
+      "sha256": "562c8975e44d3bf365a516f60f8e77bd70a418ddd696f25a20e5cdabd8515391"
+    }
+  ]
+}
