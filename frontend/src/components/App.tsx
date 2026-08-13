@@ -33,7 +33,7 @@ export function App() {
   );
   const navbarWidth = useSettingsStore((s) => s.navbarWidth) ?? NAVBAR_DEFAULT_WIDTH;
   const setNavbarWidth = useSettingsStore((s) => s.setNavbarWidth);
-  const { error: healthError } = useHealth();
+  const { error: healthError, failureKind } = useHealth();
   const isDesktop = useMediaQuery("(min-width: 48em)");
   const [mobileNavOpened, { toggle: toggleMobileNav, close: closeMobileNav, open: openMobileNav }] =
     useDisclosure(false);
@@ -98,9 +98,21 @@ export function App() {
 
         <AppShell.Main>
           <Box p={PANEL_PADDING} pb="xl" style={{ minWidth: 0, overflowX: "hidden" }}>
-            {healthError && (
+            {/* A 429 is the server throttling this connection — it arrives *from*
+                the stack, so the stack is up. Reporting it as "Backend
+                unreachable" and telling the user to start the API sent them
+                chasing a problem that does not exist. The two cases now read
+                differently and only the genuine one is an error. */}
+            {healthError && failureKind === "throttled" && (
+              <Alert color="yellow" mb="md" title="Server is busy">
+                {healthError} Your work is not affected — requests will go through
+                again shortly. If it persists, fewer browser tabs open on this
+                network will help.
+              </Alert>
+            )}
+            {healthError && failureKind !== "throttled" && (
               <Alert color="red" mb="md" title="Backend unreachable">
-                {healthError}. Start the API at{" "}
+                {healthError}. Expected the API at{" "}
                 {import.meta.env.VITE_API_URL || window.location.origin}.
               </Alert>
             )}
