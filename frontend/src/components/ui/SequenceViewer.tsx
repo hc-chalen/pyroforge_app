@@ -19,6 +19,8 @@ interface SequenceViewerProps {
   sequence: string;
   /** Shown above the sequence, e.g. "Optimized sequence". */
   label?: string;
+  /** Short note under the label, before the sequence block. */
+  description?: React.ReactNode;
   /** 0-based positions to mark (mutated sites). */
   highlights?: number[];
   /** Header used for FASTA copy/download; defaults to "sequence". */
@@ -86,6 +88,7 @@ function CopyIconButton({
 export function SequenceViewer({
   sequence,
   label,
+  description,
   highlights,
   fastaName = "sequence",
   collapsedLines = 4,
@@ -180,6 +183,11 @@ export function SequenceViewer({
           )}
         </Group>
       </Group>
+      {description && (
+        <Text size="xs" c="dimmed">
+          {description}
+        </Text>
+      )}
       <Box
         style={{
           border: "1px solid var(--mantine-color-default-border)",

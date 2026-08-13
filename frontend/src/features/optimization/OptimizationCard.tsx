@@ -142,9 +142,8 @@ export function OptimizationCard({
             </Badge>
           }
         />
-        <Text size="sm" c="dimmed">
-          Every single-residue substitution, ranked by ΔΔG — a shortlist to
-          screen, not verified stabilizing mutations.
+        <Text size="sm" c="dimmed" fw={500}>
+          Scans every SINGLE POINT MUTATION and ranks them by ΔΔG.
         </Text>
         {inputRefusal?.scope === "step" && (
           <WithheldNotice withheld={inputRefusal} />
@@ -270,6 +269,11 @@ export function OptimizationCard({
             <SequenceViewer
               sequence={optimization.optimized_sequence}
               label="Optimized sequence"
+              description={
+                optimization.mutations.length > 0
+                  ? `Combines the ${optimization.mutations.length} top-ranking mutations.`
+                  : undefined
+              }
               fastaName={`optimized_${optimization.mutations
                 .map((m) => `${m.source_aa}${m.position + 1}${m.target_aa}`)
                 .join("_") || "wild_type"}`}
