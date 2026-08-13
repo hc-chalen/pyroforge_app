@@ -1,8 +1,10 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Code,
+  CopyButton,
   Group,
   Paper,
   SimpleGrid,
@@ -166,11 +168,26 @@ export function ProcurementCard({
               {procurement.price_usd != null && (
                 <StatPaper>
                   <Text size="xs" c="dimmed">
-                    Price (USD)
+                    {/* The label carries the distinction, not a footnote. A
+                        fabricated number formatted exactly like a quote is read
+                        as a quote. */}
+                    {procurement.price_is_estimate
+                      ? "Rough estimate (USD)"
+                      : "Twist quote (USD)"}
                   </Text>
-                  <Text fw={700} ff="monospace">
-                    ${procurement.price_usd.toFixed(2)}
+                  <Text
+                    fw={700}
+                    ff="monospace"
+                    c={procurement.price_is_estimate ? "dimmed" : undefined}
+                  >
+                    {procurement.price_is_estimate ? "~" : ""}$
+                    {procurement.price_usd.toFixed(2)}
                   </Text>
+                  {procurement.synthesis_product && (
+                    <Text size="xs" c="dimmed">
+                      {procurement.synthesis_product}
+                    </Text>
+                  )}
                 </StatPaper>
               )}
               {procurement.lead_time_days != null && (
@@ -184,6 +201,14 @@ export function ProcurementCard({
                 </StatPaper>
               )}
             </SimpleGrid>
+            {procurement.price_is_estimate && procurement.price_basis && (
+              <InfoNote
+                tone="warning"
+                summary="This price is not a quote — Twist was not contacted."
+              >
+                {procurement.price_basis}
+              </InfoNote>
+            )}
             <Text size="xs" c="dimmed">
               Status: {procurement.twist_status} · Organism:{" "}
               {procurement.organism} · variant: {variant}
@@ -196,6 +221,40 @@ export function ProcurementCard({
             <Code block ff="monospace" style={{ maxHeight: 120, overflow: "auto" }}>
               {procurement.dna_sequence}
             </Code>
+            {/* The card's actual endpoint. Twist has no documented deep link that
+                pre-fills a sequence, so the honest handoff is: put the CDS on the
+                clipboard and open their order page. */}
+            <Group gap="xs">
+              <CopyButton value={procurement.dna_sequence} timeout={2000}>
+                {({ copied, copy }) => (
+                  <Button variant="light" onClick={copy}>
+                    {copied ? "CDS copied" : "Copy CDS"}
+                  </Button>
+                )}
+              </CopyButton>
+              {procurement.order_url && (
+                <Button
+                  component="a"
+                  href={procurement.order_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="outline"
+                  color="brand"
+                >
+                  Order at {procurement.vendor ?? "Twist"} ↗
+                </Button>
+              )}
+              {procurement.pricing_url && (
+                <Anchor
+                  href={procurement.pricing_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="xs"
+                >
+                  Current pricing
+                </Anchor>
+              )}
+            </Group>
           </Stack>
         )}
         <Group>

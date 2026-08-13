@@ -15,15 +15,21 @@ class Settings(BaseSettings):
     test_data_path: Path = _REPO_ROOT / "esm2_test.pt"
     checkpoint_dir: Path = _BACKEND_ROOT / "checkpoints"
     cache_dir: Path = _BACKEND_ROOT / "cache"
+    # Operator-provisioned protein snapshot of the iGEM Registry, built by
+    # `pyroforge-fetch-parts`. Absent = the registry engine reports itself as not
+    # provisioned; it never falls back to a built-in stand-in database.
     igem_parts_fasta_path: Path = _BACKEND_ROOT / "data" / "igem_parts.fasta"
-    mmseqs_db_path: Path = _BACKEND_ROOT / "data" / "igem_mmseqs_db"
 
     device: str = "auto"  # auto → CUDA, else Apple-Silicon MPS, else CPU
     esm_model_name: str = "esm2_t33_650M_UR50D"
     preload_esm2_on_startup: bool = True
 
     esmfold_api_url: str = "https://api.esmatlas.com/foldSequence/v1/pdb/"
-    igem_api_base: str = "https://parts.igem.org/cgi"
+    # NOTE: igem_api_base was removed with the per-hit metadata fetch. That endpoint
+    # (parts.igem.org/cgi/xml/part.cgi) sits behind a CDN that returns 403 to server
+    # traffic, so every lookup failed and returned an empty description — after
+    # spending up to 15 s per hit on the `fast` Celery queue, which also serves
+    # predictions. Descriptions now come from the local snapshot.
     twist_api_key: str = ""
     twist_api_base: str = "https://api.twistbioscience.com"
 

@@ -38,6 +38,10 @@ x-worker-base: &worker-base
       condition: service_healthy
   volumes:
     - ./backend/checkpoints:/app/checkpoints
+    # The iGEM parts snapshot. Shared with the backend container so the snapshot
+    # built by `pyroforge-fetch-parts` is the one worker-fast actually searches,
+    # and so it survives an image rebuild.
+    - ./backend/data:/app/data
     - pyroforge-cache:/app/cache
     - ${HOME}/.cache/torch:/app/cache/torch
 
@@ -89,6 +93,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/checkpoints:/app/checkpoints
+      # See the worker note above — same snapshot, same path.
+      - ./backend/data:/app/data
       - pyroforge-cache:/app/cache
       # Reuse host ESM-2 weights so Docker does not re-download ~2.5 GB.
       - ${HOME}/.cache/torch:/app/cache/torch

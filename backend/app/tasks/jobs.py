@@ -76,6 +76,8 @@ def optimize_sequence(
         "baseline_tm": result.baseline_tm,
         "ddg": result.ddg,
         "ddg_ci95": result.ddg_ci95,
+        "dg_confidence": result.dg_confidence,
+        "dg_confidence_reason": result.dg_confidence_reason,
         "mutation_details": result.mutation_details,
         "ranking_quality": result.ranking_quality,
         "scan_summary": result.scan_summary,

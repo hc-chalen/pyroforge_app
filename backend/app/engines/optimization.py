@@ -27,6 +27,13 @@ class OptimizationResult:
     baseline_tm: float | None
     ddg: float          # total ΔΔG of the selected set — positive = stabilizing
     ddg_ci95: float | None = None  # ±95% interval on ΔΔG from model_ddg's residual
+    # Whether this sequence is inside the small-domain length regime model_ddg was
+    # trained on. /predict has always reported this; the optimizer did not, even
+    # though its entire ranking comes from the same model — so a 240-residue
+    # protein got "ΔΔG is extrapolated here" on the prediction card and an
+    # unqualified ΔΔG ± CI on the optimization card.
+    dg_confidence: str | None = None
+    dg_confidence_reason: str | None = None
     # Per-mutation predicted ΔΔG and rank. The shortlist is a ranking, so the rank
     # and the individual predictions must travel with it — a bare list of mutations
     # invites reading every entry as equally established.
@@ -281,6 +288,8 @@ class OptimizationEngine:
             baseline_tm=baseline_tm,
             ddg=ddg_value,
             ddg_ci95=self.ddg_ci95(),
+            dg_confidence=baseline.get("dg_confidence"),
+            dg_confidence_reason=baseline.get("dg_confidence_reason"),
             mutation_details=[
                 {
                     "position": m.position,

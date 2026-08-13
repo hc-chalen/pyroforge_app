@@ -84,3 +84,14 @@ wandb/
 app/training/evaluate_and_visualize.py
 app/training/autopytorch_visualize.py
 app/training/evaluate_all_models.py
+
+# ---------------------------------------------------------------------------
+# iGEM parts snapshot — operator-provisioned, not source. Built on the server
+# with `uv run pyroforge-fetch-parts` (see docs/OPERATIONS.md). It used to be a
+# 3-sequence placeholder committed here, which made the Registry search answer
+# every query against three fluorescent proteins while claiming to search the
+# iGEM Registry.
+# ---------------------------------------------------------------------------
+data/igem_parts.fasta
+data/igem_parts.manifest.json
+data/igem_mmseqs_db*

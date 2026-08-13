@@ -60,6 +60,10 @@ pyroforge-automl-tm = "app.training.automl_tm:main"               # AutoML searc
 # Characterises the shipped model_ddg: fits the level calibration and measures the
 # within-protein ranking quality the optimizer reports. Re-run after train-ddg.
 pyroforge-calibrate-ddg = "app.training.calibrate_ddg:main"       # model_ddg calibration + ranking stats
+# Builds the local iGEM parts snapshot the Registry search runs against. Without
+# it the registry engine reports itself as not provisioned rather than answering
+# queries against a stand-in database.
+pyroforge-fetch-parts = "app.data.igem_parts:main"
 # Offline NAS research tooling (feeds the /models/nas-report panel)
 pyroforge-autopytorch = "app.training.autopytorch_tune:main"
 

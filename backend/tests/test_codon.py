@@ -35,9 +35,20 @@ def test_every_synonymous_family_peaks_at_one() -> None:
 
 
 def test_fully_optimized_sequence_scores_cai_one() -> None:
+    """A gene built from every family's best codon must score exactly 1.0.
+
+    Built here from the table rather than from ``CodonOptimizer.optimize``: the
+    optimizer no longer emits the family maximum unconditionally — it gives some
+    adaptiveness back to avoid homopolymer runs and hairpins — so calling it here
+    would test the back-translation policy instead of the normalization invariant
+    this file exists to guard. See test_procurement for the optimizer's own
+    contract.
+    """
     opt = CodonOptimizer()
-    for organism in CODON_TABLES:
-        dna = opt.optimize(PROTEIN, organism)
+    for organism, table in CODON_TABLES.items():
+        dna = "".join(
+            max(GENETIC_CODE[aa], key=lambda c: table[c]) for aa in PROTEIN
+        )
         cai = opt.analyze(dna, organism)["cai"]
         assert cai == 1.0, f"{organism}: best-codon sequence scored CAI {cai}, expected 1.0"
 

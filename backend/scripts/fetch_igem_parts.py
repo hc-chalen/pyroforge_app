@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""Bootstrap iGEM parts FASTA for MMseqs2 indexing."""
+"""Thin shim — the implementation lives in ``app.data.igem_parts`` so that it
+ships inside the installed package (only ``app`` is packaged; see pyproject).
 
-from app.engines.registry_engine import MMseqsService
+Prefer the console script: ``uv run pyroforge-fetch-parts``.
+"""
 
-
-def main() -> None:
-    service = MMseqsService()
-    service.ensure_database()
-    print(f"iGEM parts FASTA: {service.fasta_path}")
-    print(f"MMseqs2 DB: {service.db_path}")
-
+from app.data.igem_parts import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

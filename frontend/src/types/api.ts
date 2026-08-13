@@ -115,6 +115,9 @@ export interface OptimizationResult {
   baseline_tm: number | null;
   ddg: number;
   ddg_ci95?: number | null;
+  /** Same length gate /predict applies to ΔΔG; the ranking uses the same model. */
+  dg_confidence?: string | null;
+  dg_confidence_reason?: string | null;
   mutation_details?: RankedMutation[];
   ranking_quality?: RankingQuality | null;
   scan_summary: ScanSummary;
@@ -205,9 +208,22 @@ export interface RegistryMatch {
   search_method?: string | null;
 }
 
+/** What was actually searched — see RegistryDatabaseInfo in the API schemas. */
+export interface RegistryDatabaseInfo {
+  status: "ready" | "not_provisioned" | string;
+  n_parts: number;
+  source?: string | null;
+  built_at?: string | null;
+  detail?: string | null;
+}
+
 export interface RegistrySearchResponse {
   matches: RegistryMatch[];
   query_length: number;
+  database: RegistryDatabaseInfo;
+  /** Non-null when no search ran at all — distinct from a search with no hits. */
+  unavailable_reason?: string | null;
+  unavailable_detail?: string | null;
 }
 
 export interface ProcureRequest {
@@ -227,6 +243,14 @@ export interface ProcureResponse {
   price_usd?: number;
   lead_time_days?: number;
   twist_status: string;
+  vendor?: string | null;
+  /** True unless Twist's API actually returned this price. */
+  price_is_estimate: boolean;
+  price_basis?: string | null;
+  synthesis_product?: string | null;
+  /** Twist's order page — where an actual order is placed. */
+  order_url?: string | null;
+  pricing_url?: string | null;
 }
 
 export interface HealthResponse {

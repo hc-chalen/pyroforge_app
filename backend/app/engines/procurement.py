@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.services.codon import CodonOptimizer
+from app.services.esm2 import ESM2Service
 from app.services.twist import TwistService
 
 
@@ -16,7 +17,13 @@ class ProcurementEngine:
         protein_sequence: str,
         organism: str = "ecoli",
     ) -> dict:
-        seq = protein_sequence.strip().upper()
+        # Validated with the same rules as every other endpoint, server-side. This
+        # route used to accept anything: a non-standard residue became an ``NNN``
+        # codon that still got a CAI and a price, and a pasted DNA sequence was
+        # silently read as protein (A, T, G and C are all valid residue letters).
+        # The browser blocked both, so the gap only opened for direct API callers —
+        # which on an unauthenticated deployment is anyone.
+        seq = ESM2Service.validate_sequence(protein_sequence)
         dna = self.codon.optimize(seq, organism)
         analysis = self.codon.analyze(dna, organism)
         twist_quote = self.twist.get_quote(dna)

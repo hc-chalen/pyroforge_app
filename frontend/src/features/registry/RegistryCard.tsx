@@ -12,6 +12,7 @@ import {
 } from "@mantine/core";
 import { useState } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
+import { InfoNote } from "@/components/ui/InfoNote";
 import {
   SequenceVariantSelector,
   StaleVariantAlert,
@@ -98,7 +99,8 @@ export function RegistryCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Homologous BioBricks in the iGEM Parts Registry (MMseqs2).
+          Homologous BioBricks in a local snapshot of the iGEM Parts Registry
+          (MMseqs2).
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -123,10 +125,26 @@ export function RegistryCard({
         )}
         {registry && (
           <Stack gap="sm">
-            {registry.matches.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No matching parts found for this sequence.
-              </Text>
+            {/* "No matches" is only interpretable next to what was searched. The
+                previous card said "No matching parts found for this sequence"
+                against a three-sequence placeholder database, which reads as a
+                statement about the Registry rather than about this server. */}
+            {registry.unavailable_reason ? (
+              <Alert color="yellow" title="Registry search did not run">
+                {registry.unavailable_detail ??
+                  registry.database?.detail ??
+                  "No parts database is available on this server."}
+              </Alert>
+            ) : registry.matches.length === 0 ? (
+              <InfoNote
+                summary={`No homologs in the ${
+                  registry.database?.n_parts?.toLocaleString() ?? "?"
+                }-part snapshot on this server.`}
+              >
+                The search ran and returned nothing. That is a statement about
+                this snapshot, not about the iGEM Registry as a whole — a part
+                absent from the snapshot cannot be found here.
+              </InfoNote>
             ) : (
               <Table striped highlightOnHover withTableBorder>
                 <Table.Thead>
@@ -150,6 +168,16 @@ export function RegistryCard({
                   ))}
                 </Table.Tbody>
               </Table>
+            )}
+            {/* Provenance of the snapshot, on every result. */}
+            {registry.database && (
+              <Text size="xs" c="dimmed">
+                Searched {registry.database.n_parts.toLocaleString()} parts
+                {registry.database.built_at
+                  ? ` · snapshot ${registry.database.built_at.slice(0, 10)}`
+                  : ""}
+                {registry.database.source ? ` · ${registry.database.source}` : ""}
+              </Text>
             )}
           </Stack>
         )}

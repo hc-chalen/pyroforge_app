@@ -18,6 +18,15 @@ GENETIC_CODE = {
 
 CODON_TO_AA = {c: aa for aa, codons in GENETIC_CODE.items() for c in codons}
 
+_COMPLEMENT = str.maketrans("ACGT", "TGCA")
+
+# Runs the back-translator refuses to create: 5+ identical bases. Deliberately one
+# stricter than the `(.)\1{5,}` (6+) run that raises the ``homopolymer_run``
+# feasibility flag, so the optimizer leaves headroom rather than emitting sequence
+# that sits exactly on the flag's boundary. Kept in sync with
+# CodonOptimizer.MAX_HOMOPOLYMER.
+_HOMOPOLYMER_RUN = re.compile(r"(.)\1{4,}")
+
 # Amino acids whose family has exactly one codon. Their relative adaptiveness is
 # 1.0 by construction, so they carry no information about codon choice and the
 # standard CAI definition excludes them (along with stop codons).
@@ -201,14 +210,132 @@ class CodonOptimizer:
                 f"Supported: {', '.join(sorted(CODON_USAGE))}."
             ) from None
 
+    # A codon this far below its family's best is a rare codon; substituting one in
+    # to break up a repeat trades a synthesis problem for a translation problem.
+    MIN_ACCEPTABLE_WEIGHT = 0.2
+    # Manufacturability constraints, in the same units the feasibility flags use.
+    MAX_HOMOPOLYMER = 4        # 5+ identical bases in a row is a synthesis flag
+    HAIRPIN_STEM = 8
+    HAIRPIN_MAX_LOOP = 12
+
     def optimize(self, protein: str, organism: str = "ecoli") -> str:
+        """Back-translate ``protein`` into a synthesizable, codon-adapted CDS.
+
+        Per residue this takes the highest-weight codon that does **not** create a
+        homopolymer run or a hairpin stem, falling back to the highest-weight codon
+        outright when every option is constrained.
+
+        The previous version was a plain per-residue ``argmax``, which is wrong in
+        two ways that both showed up on the dashboard. Because it always picked the
+        family maximum, and relative adaptiveness is 1.0 at the family maximum by
+        construction, **CAI was identically 1.000 for every input** — the number
+        carried no information about the sequence at all. And using exactly one
+        codon per amino acid produces heavy local repetition: on GFP it emitted 20
+        distinct codons across 238 positions and tripped both ``homopolymer_run``
+        and ``potential_hairpin``, so the feasibility flags fired on essentially
+        every order and stopped meaning anything.
+        """
         table = self._table(organism)
-        codons = []
-        for aa in protein:
-            options = GENETIC_CODE.get(aa, ["NNN"])
-            best = max(options, key=lambda c: table.get(c, 0.01))
-            codons.append(best)
-        return "".join(codons)
+        out: list[str] = []
+        dna = ""
+
+        for i, aa in enumerate(protein):
+            options = GENETIC_CODE.get(aa)
+            if options is None:
+                # Non-standard residue (X, B, Z, U). There is no codon for it; emit
+                # the placeholder rather than guessing, and let analyze() see it.
+                out.append("NNN")
+                dna += "NNN"
+                continue
+
+            next_aa = protein[i + 1] if i + 1 < len(protein) else None
+            chosen = self._choose_codon(dna, options, table, next_aa)
+            out.append(chosen)
+            dna += chosen
+        return "".join(out)
+
+    def _acceptable(self, options: list[str], table: dict[str, float]) -> list[str]:
+        """Options ranked by adaptiveness, dropping rare codons.
+
+        Substituting a rare codon in to break up a repeat trades a synthesis
+        problem for a translation problem, so the family's poor performers are not
+        candidates at all — unless the whole family is poor, in which case the best
+        available one is still better than nothing.
+        """
+        ranked = sorted(options, key=lambda c: table[c], reverse=True)
+        usable = [c for c in ranked if table[c] >= self.MIN_ACCEPTABLE_WEIGHT]
+        return usable or ranked[:1]
+
+    def _choose_codon(
+        self,
+        dna: str,
+        options: list[str],
+        table: dict[str, float],
+        next_aa: str | None,
+    ) -> str:
+        """Pick this residue's codon, looking one residue ahead.
+
+        Pure greedy paints itself into corners that a single step of lookahead
+        avoids. On GFP's ``…D-F-F…`` the greedy choice GAT+TTT leaves four T's, and
+        then *both* Phe codons start ``TT``, so the second F is forced to extend the
+        run to seven regardless of what it picks. Choosing TTC for the first F costs
+        a little adaptiveness and leaves the next residue free.
+
+        When every option violates a constraint the run is unavoidable (poly-lysine
+        is the honest example), so the pick is the one that keeps the damage
+        smallest and the feasibility flag is left to fire.
+        """
+        ranked = self._acceptable(options, table)
+        viable = [c for c in ranked if not self._violates_constraints(dna, c)]
+
+        if viable and next_aa is not None:
+            next_options = GENETIC_CODE.get(next_aa)
+            if next_options is not None:
+                next_ranked = self._acceptable(next_options, table)
+                unblocking = [
+                    c
+                    for c in viable
+                    if any(
+                        not self._violates_constraints(dna + c, n) for n in next_ranked
+                    )
+                ]
+                if unblocking:
+                    return unblocking[0]
+        if viable:
+            return viable[0]
+        # Nothing is clean: prefer the shortest resulting run, then adaptiveness.
+        return min(ranked, key=lambda c: (self._longest_run(dna + c), -table[c]))
+
+    @staticmethod
+    def _longest_run(dna: str) -> int:
+        tail = dna[-16:]
+        return max((len(m.group()) for m in re.finditer(r"(.)\1*", tail)), default=0)
+
+    def _violates_constraints(self, dna: str, codon: str) -> bool:
+        """Would appending ``codon`` create a homopolymer run or a hairpin stem?
+
+        Only the junction is examined — the prefix was already checked when it was
+        built — so this stays O(1) per candidate instead of rescanning the whole
+        CDS for every one of the ~6 options at every residue.
+        """
+        extended = dna + codon
+        # The new run can end anywhere inside the appended codon, not only at the
+        # last base: "…GAT" + "TTC" makes TTTTTT with a C after it. So the window
+        # spans the codon plus the longest run that could precede it.
+        window = extended[-(self.MAX_HOMOPOLYMER + len(codon)) :]
+        if _HOMOPOLYMER_RUN.search(window):
+            return True
+        return self._closes_hairpin(extended)
+
+    def _closes_hairpin(self, dna: str) -> bool:
+        """True if a stem ending at the last base pairs with an upstream segment."""
+        stem, loop = self.HAIRPIN_STEM, self.HAIRPIN_MAX_LOOP
+        if len(dna) < 2 * stem:
+            return False
+        segment = dna[-stem:]
+        rev_comp = segment.translate(_COMPLEMENT)[::-1]
+        window_start = max(0, len(dna) - 2 * stem - loop)
+        return rev_comp in dna[window_start : len(dna) - stem]
 
     def analyze(self, dna: str, organism: str = "ecoli") -> dict:
         dna = dna.upper()
@@ -269,12 +396,11 @@ class CodonOptimizer:
         ``stem``-length reverse complement anywhere within ``max_loop`` bases
         downstream, which is what a hairpin actually is.
         """
-        complement = str.maketrans("ACGT", "TGCA")
         for i in range(len(dna) - stem):
             segment = dna[i : i + stem]
             if len(segment) < stem:
                 break
-            rev_comp = segment.translate(complement)[::-1]
+            rev_comp = segment.translate(_COMPLEMENT)[::-1]
             search_from = i + stem
             if rev_comp in dna[search_from : search_from + max_loop + stem]:
                 return True

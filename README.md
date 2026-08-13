@@ -249,7 +249,7 @@ cd backend && uv run python scripts/inspect_pt.py
 | GET  | `/api/v1/jobs/{id}` | Check the status of a background job |
 | POST | `/api/v1/visualize/fold` | Predict the 3-D structure (ESMFold) |
 | POST | `/api/v1/visualize/heatmap` | Per-residue stability heatmap data |
-| POST | `/api/v1/registry/search` | Search similar iGEM parts |
+| POST | `/api/v1/registry/search` | Search a local iGEM parts snapshot (build it with `pyroforge-fetch-parts`; see docs/OPERATIONS.md) |
 | POST | `/api/v1/procure/quote` | Codon-optimize + get an ordering quote |
 | POST | `/api/v1/embed/compare` | Compare two sequences' embeddings |
 

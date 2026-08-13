@@ -188,6 +188,24 @@ export function OptimizationCard({
         )}
         {optimization && (
           <Stack gap="sm">
+            {/* The same length gate /predict applies to ΔΔG. The optimizer's whole
+                ranking comes from model_ddg, so without this the prediction card
+                could say "ΔΔG is extrapolated at this length" while this card
+                showed an unqualified ΔΔG ± CI beside it. It also explains the
+                commonest surprise: outside the training regime the predictions
+                compress toward the mean and nothing clears the ΔΔG > 0 bar, so
+                the optimizer returns the input unchanged. */}
+            {optimization.dg_confidence === "low" && (
+              <InfoNote
+                tone="warning"
+                summary="ΔΔG is extrapolated at this sequence length — treat the ranking as weak."
+              >
+                {optimization.dg_confidence_reason}{" "}
+                Predictions compress toward the training mean out here, so both
+                the ΔΔG magnitude and an empty shortlist are less informative
+                than they look.
+              </InfoNote>
+            )}
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <StatPaper>
                 <MetricLabel

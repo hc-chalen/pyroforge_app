@@ -150,6 +150,10 @@ class OptimizationResultResponse(BaseModel):
     baseline_tm: float | None = None
     ddg: float
     ddg_ci95: float | None = None
+    # Same length gate /predict applies to ΔΔG — the optimizer's ranking comes from
+    # the same model, so it carries the same flag.
+    dg_confidence: str | None = None
+    dg_confidence_reason: str | None = None
     mutation_details: list[RankedMutation] = Field(default_factory=list)
     ranking_quality: RankingQuality | None = None
     scan_summary: dict
@@ -198,9 +202,29 @@ class RegistryMatch(BaseModel):
     search_method: str | None = None
 
 
+class RegistryDatabaseInfo(BaseModel):
+    """What was actually searched.
+
+    Reported with every result because without it an empty match list is
+    unreadable: "this protein has no homolog in the Registry" and "the local
+    snapshot holds three sequences" look identical to the user otherwise.
+    """
+
+    status: str = Field(..., description="'ready' or 'not_provisioned'")
+    n_parts: int
+    source: str | None = None
+    built_at: str | None = None
+    detail: str | None = None
+
+
 class RegistrySearchResponse(BaseModel):
     matches: list[RegistryMatch]
     query_length: int
+    database: RegistryDatabaseInfo
+    # Non-null when no search could be run at all, which is a different answer
+    # from a search that returned nothing.
+    unavailable_reason: str | None = None
+    unavailable_detail: str | None = None
 
 
 class ProcureRequest(BaseModel):
@@ -226,6 +250,18 @@ class ProcureResponse(BaseModel):
     price_usd: float | None = None
     lead_time_days: int | None = None
     twist_status: str
+    vendor: str | None = None
+    # A price with no key configured is a local estimate, not a Twist quote. The
+    # flag is structural so the UI cannot render the two identically by omission.
+    price_is_estimate: bool = True
+    price_basis: str | None = Field(
+        default=None, description="Exactly where the price came from"
+    )
+    synthesis_product: str | None = None
+    order_url: str | None = Field(
+        default=None, description="Twist's order page — where a real order is placed"
+    )
+    pricing_url: str | None = None
 
 
 class TrainRequest(BaseModel):

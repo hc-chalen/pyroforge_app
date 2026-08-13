@@ -51,7 +51,44 @@ cp .env.example .env        # set DEVICE=cuda on the GPU host
 
 # 2. Bring the stack up (first boot downloads ESM-2 weights, ~2.5 GB)
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+
+# 3. Build the iGEM parts snapshot the Registry search runs against
+docker compose exec backend uv run pyroforge-fetch-parts
 ```
+
+### The iGEM parts snapshot
+
+Registry Interoperability searches a **local protein snapshot** of the iGEM
+Registry, built by step 3 into `./backend/data/` (bind-mounted into the backend
+and every worker, so it survives an image rebuild and all containers see the
+same file). Until it exists the engine reports itself as `not_provisioned` and
+the UI says so — it will not answer queries against a stand-in database.
+
+`parts.igem.org` sits behind a CDN that returns **403 to a lot of server
+traffic**, so step 3 may fail on a campus network. In that case download the
+export in a browser and feed it in:
+
+```bash
+# Save https://parts.igem.org/fasta/parts/All_Parts from a browser, then:
+docker compose cp All_Parts.fasta backend:/tmp/All_Parts.fasta
+docker compose exec backend uv run pyroforge-fetch-parts --from-file /tmp/All_Parts.fasta
+```
+
+The Registry distributes DNA; the search is over protein. The script translates
+the longest ORF of each part, drops non-coding parts and anything outside
+30–2000 aa, and de-duplicates. Check what you got:
+
+```bash
+cat backend/data/igem_parts.manifest.json
+```
+
+Every search result carries `database.n_parts` and the snapshot date, and the
+card prints them — so "no homologs" is always readable next to how much was
+actually searched.
+
+> **Sizing.** With more than 2,000 parts the pairwise fallback is refused as too
+> slow and mmseqs2 becomes mandatory. It is installed in the backend image, so
+> this only bites if you run outside Docker.
 
 To start it automatically on boot, install the systemd unit — edit
 `WorkingDirectory` and the `HOME`/`DEVICE` values in it first:
@@ -114,6 +151,9 @@ docker compose exec backend curl -X POST localhost:8000/api/v1/admin/train
   server; say so to your users, or point `ESMFOLD_API_URL` at your own instance.
 - **Leave `TWIST_API_KEY` unset** on a public deployment. With it set,
   `/api/v1/procure/quote` spends your Twist quota on behalf of anonymous callers.
+  Unset is the normal case, and the card then shows a local estimate labelled as
+  one (`price_is_estimate: true`) plus a link to Twist's own order page — it is
+  never presented as a quote. Ordering happens on Twist, not here.
 - **Containers run as root** (neither Dockerfile sets `USER`), and the backend
   bind-mounts `./backend/checkpoints` and `~/.cache/torch` read-write. Worth
   fixing before this runs anywhere untrusted.
