@@ -50,9 +50,19 @@ class PartsDatabase:
                 "n_parts": 0,
                 "source": None,
                 "built_at": None,
+                # Written for the person looking at the screen, who did nothing
+                # wrong and cannot fix this. The operator instruction is a
+                # separate field so the UI can show one without the other.
                 "detail": (
-                    "No iGEM parts snapshot on this server. Build one with "
-                    "`uv run pyroforge-fetch-parts` (see docs/OPERATIONS.md)."
+                    "This server has no copy of the iGEM parts database, so "
+                    "homology search is switched off. Nothing is wrong with your "
+                    "sequence — the other cards work normally."
+                ),
+                "admin_hint": (
+                    "Admin: build the snapshot with `uv run pyroforge-fetch-parts` "
+                    "(see docs/OPERATIONS.md). parts.igem.org is behind a CDN that "
+                    "returns 403 to server networks, so the --from-file path is "
+                    "usually the one that works."
                 ),
             }
         meta: dict = {}
@@ -67,6 +77,7 @@ class PartsDatabase:
             "source": meta.get("source"),
             "built_at": meta.get("built_at"),
             "detail": meta.get("detail"),
+            "admin_hint": None,
         }
 
     def entries(self) -> list[tuple[str, str]]:
@@ -286,8 +297,8 @@ class RegistryEngine:
 
     UNAVAILABLE_DETAIL = {
         "no_database": (
-            "No iGEM parts snapshot is installed on this server, so no search was "
-            "run. Build one with `uv run pyroforge-fetch-parts`."
+            "This server has no copy of the iGEM parts database, so no search was "
+            "run. Nothing is wrong with your sequence."
         ),
         "mmseqs_required": (
             "The parts snapshot is too large for the pairwise fallback and the "

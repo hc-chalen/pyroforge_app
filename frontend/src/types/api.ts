@@ -215,6 +215,8 @@ export interface RegistryDatabaseInfo {
   source?: string | null;
   built_at?: string | null;
   detail?: string | null;
+  /** Operator remediation — deliberately not shown to ordinary users. */
+  admin_hint?: string | null;
 }
 
 export interface RegistrySearchResponse {

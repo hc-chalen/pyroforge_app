@@ -10,7 +10,7 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
 import { InfoNote } from "@/components/ui/InfoNote";
 import {
@@ -19,10 +19,14 @@ import {
 } from "@/components/ui/SequenceVariantSelector";
 import { useAsyncJob } from "@/hooks/useAsyncJob";
 import { useSequenceVariant, useVariantResult } from "@/hooks/useSequenceVariant";
-import { searchRegistry } from "@/services/registry";
+import { getRegistryStatus, searchRegistry } from "@/services/registry";
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import type { OptimizationResult, RegistrySearchResponse } from "@/types/api";
+import type {
+  OptimizationResult,
+  RegistryDatabaseInfo,
+  RegistrySearchResponse,
+} from "@/types/api";
 import { withheldSequence } from "@/utils/answerability";
 import { hasOptimizedVariant } from "@/utils/sequenceVariant";
 
@@ -39,6 +43,26 @@ export function RegistryCard({
 }: RegistryCardProps) {
   const [localError, setLocalError] = useState<string | undefined>();
   const { loading, progress, runJob } = useAsyncJob();
+  // Asked once on mount. Until it answers the card behaves normally; the point
+  // is only to stop a user submitting into a server that has no database.
+  const [dbStatus, setDbStatus] = useState<RegistryDatabaseInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRegistryStatus()
+      .then((s) => {
+        if (!cancelled) setDbStatus(s);
+      })
+      .catch(() => {
+        // A failed status probe must not disable a working feature — leave the
+        // card as it was and let the search itself report any problem.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const unavailable = dbStatus?.status === "not_provisioned";
   const maxHits = useSettingsStore((s) => s.maxHits);
   const setRegistry = useAnalysisStore((s) => s.setRegistry);
   const setStatus = useAnalysisStore((s) => s.setStatus);
@@ -93,8 +117,24 @@ export function RegistryCard({
           eyebrow="Interoperability"
           title="Registry Interoperability"
           status={
-            <Badge color={registry ? "green" : loading ? "blue" : "gray"}>
-              {loading ? "running" : registry ? "complete" : "idle"}
+            <Badge
+              color={
+                unavailable
+                  ? "yellow"
+                  : registry
+                    ? "green"
+                    : loading
+                      ? "blue"
+                      : "gray"
+              }
+            >
+              {unavailable
+                ? "unavailable"
+                : loading
+                  ? "running"
+                  : registry
+                    ? "complete"
+                    : "idle"}
             </Badge>
           }
         />
@@ -102,6 +142,24 @@ export function RegistryCard({
           Homologous BioBricks in a local snapshot of the iGEM Parts Registry
           (MMseqs2).
         </Text>
+        {/* Said up front, not after the user submits and waits. The cause is
+            outside this app: the iGEM Registry's bulk export sits behind a CDN
+            that returns 403 to server networks, so the snapshot has to be
+            installed by hand and often simply is not there. The user did nothing
+            wrong and can do nothing about it, so the copy says exactly that and
+            keeps the operator's shell command out of their way. */}
+        {unavailable && (
+          <Alert color="yellow" title="Not available on this server">
+            <Stack gap={4}>
+              <Text size="sm">{dbStatus?.detail}</Text>
+              <Text size="xs" c="dimmed">
+                The iGEM Parts Registry does not offer a public download that a
+                server can fetch automatically, so this database has to be
+                installed by an administrator. Ask whoever runs this deployment.
+              </Text>
+            </Stack>
+          </Alert>
+        )}
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
             sequence={sequence}
@@ -185,7 +243,9 @@ export function RegistryCard({
           <Button
             onClick={handleRun}
             loading={loading}
-            disabled={!activeSequence || loading || inputRefusal != null}
+            disabled={
+              !activeSequence || loading || inputRefusal != null || unavailable
+            }
             color="brand"
           >
             Search Registry ({variant})

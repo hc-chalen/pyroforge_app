@@ -215,6 +215,9 @@ class RegistryDatabaseInfo(BaseModel):
     source: str | None = None
     built_at: str | None = None
     detail: str | None = None
+    # Operator-facing remediation, kept separate from `detail` so the UI can show
+    # the user what happened without showing them a shell command they cannot run.
+    admin_hint: str | None = None
 
 
 class RegistrySearchResponse(BaseModel):

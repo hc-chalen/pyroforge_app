@@ -16,6 +16,7 @@ from app.api.schemas import (
     PredictResponse,
     ProcureRequest,
     ProcureResponse,
+    RegistryDatabaseInfo,
     RegistrySearchRequest,
     RegistrySearchResponse,
     TrainRequest,
@@ -147,6 +148,17 @@ def heatmap(
         return HeatmapResponse(residues=residues)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/registry/status", response_model=RegistryDatabaseInfo)
+def registry_status(reg: EngineRegistry = Depends(engines)) -> RegistryDatabaseInfo:
+    """Whether this server has a parts snapshot at all.
+
+    Cheap, synchronous and Celery-free, so the card can say "unavailable on this
+    server" before the user submits a sequence and waits on a job that was never
+    going to search anything.
+    """
+    return RegistryDatabaseInfo(**reg.registry.db.manifest())
 
 
 @router.post("/registry/search", response_model=OptimizeResponse)

@@ -41,7 +41,11 @@ def test_absent_database_is_reported_not_invented(db) -> None:
     # The key property: an unrunnable search is not reported as a search that
     # found nothing.
     assert result["matches"] == []
-    assert "pyroforge-fetch-parts" in result["unavailable_detail"]
+    # What the user is told must not blame their input, and must not be a shell
+    # command they cannot run — that stays in admin_hint.
+    assert "Nothing is wrong with your sequence" in result["unavailable_detail"]
+    assert "pyroforge-fetch-parts" not in result["database"]["detail"]
+    assert "pyroforge-fetch-parts" in result["database"]["admin_hint"]
 
 
 def test_search_reports_what_it_searched(db) -> None:

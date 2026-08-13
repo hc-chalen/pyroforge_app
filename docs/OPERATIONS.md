@@ -53,8 +53,23 @@ cp .env.example .env        # set DEVICE=cuda on the GPU host
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
 # 3. Build the iGEM parts snapshot the Registry search runs against
-docker compose exec backend uv run pyroforge-fetch-parts
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+  exec backend uv run pyroforge-fetch-parts
 ```
+
+> **After a `git pull`, rebuild before running anything new.** The production
+> stack runs baked images with no source bind-mount, so pulled code is not in the
+> containers until you rebuild — and `pyroforge-fetch-parts` in particular is a
+> console script generated during `uv sync` at *image build* time, so a new entry
+> point fails with `Failed to spawn: pyroforge-fetch-parts` until then:
+>
+> ```bash
+> docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+> ```
+>
+> Pass the same `-f` flags to every `docker compose` call. Without them compose
+> merges `docker-compose.override.yml` (the dev stack) and you are configuring a
+> different set of services than the one you are running.
 
 ### The iGEM parts snapshot
 
