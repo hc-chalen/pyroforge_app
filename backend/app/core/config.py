@@ -30,8 +30,11 @@ class Settings(BaseSettings):
     # traffic, so every lookup failed and returned an empty description — after
     # spending up to 15 s per hit on the `fast` Celery queue, which also serves
     # predictions. Descriptions now come from the local snapshot.
-    twist_api_key: str = ""
-    twist_api_base: str = "https://api.twistbioscience.com"
+    # NOTE: twist_api_key / twist_api_base were removed with the quoting feature.
+    # /api/v1/procure/quote no longer returns a price or a lead time at all — the
+    # key-less path invented both, and the keyed path parsed a guessed response
+    # schema that no test ever ran. Ordering and pricing happen on Twist; see
+    # app.services.twist.
 
     mmseqs_bin: str = "mmseqs"
     perplexity_threshold: float = 0.05

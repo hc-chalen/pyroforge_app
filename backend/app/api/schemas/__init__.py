@@ -250,21 +250,16 @@ class ProcureResponse(BaseModel):
     )
     gc_content: float = Field(..., description="GC content as a percentage (0–100)")
     feasibility_flags: list[str]
-    price_usd: float | None = None
-    lead_time_days: int | None = None
-    twist_status: str
+    # No price and no lead time, by design: this app cannot compute either, and the
+    # fields that used to carry them carried invented numbers. See TwistService.
+    # Ordering — and pricing — happens on Twist.
     vendor: str | None = None
-    # A price with no key configured is a local estimate, not a Twist quote. The
-    # flag is structural so the UI cannot render the two identically by omission.
-    price_is_estimate: bool = True
-    price_basis: str | None = Field(
-        default=None, description="Exactly where the price came from"
-    )
-    synthesis_product: str | None = None
     order_url: str | None = Field(
         default=None, description="Twist's order page — where a real order is placed"
     )
-    pricing_url: str | None = None
+    pricing_url: str | None = Field(
+        default=None, description="Twist's own pricing page — the only pricing shown"
+    )
 
 
 class TrainRequest(BaseModel):

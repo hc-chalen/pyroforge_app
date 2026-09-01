@@ -6,20 +6,30 @@ This script bridges the two: it takes a Registry export, keeps the parts that
 carry a real coding sequence, translates them, and writes the protein FASTA plus
 a manifest recording where the snapshot came from and when.
 
-Two ways to get the export:
+Three ways to get the export, in the order worth trying:
 
-  # 1. Direct download, if the server can reach the Registry.
+  # 1. The MySQL dump of the Registry's `parts` table. THE WORKING PATH as of
+  #    2026-09: the FASTA endpoint below now answers 403 from iGEM's own Apache
+  #    (not the CDN), so it is gone rather than blocked. The dump is linked from
+  #    registry.igem.org; download it in a browser, then:
+  uv run pyroforge-fetch-parts --from-sql ~/sql_parts.sql.gz
+
+  # 2. Direct download of the bulk FASTA, if the server can reach the Registry.
   uv run pyroforge-fetch-parts
 
-  # 2. From a file you downloaded yourself. parts.igem.org sits behind a CDN
+  # 3. From a FASTA you downloaded yourself. parts.igem.org sits behind a CDN
   #    that returns 403 to a lot of server traffic (including this repo's CI and
-  #    at least one university network), so this is the reliable path: open
-  #    https://parts.igem.org/fasta/parts/All_Parts in a browser, save it, then
+  #    at least one university network), so this used to be the reliable path:
+  #    open https://parts.igem.org/fasta/parts/All_Parts in a browser, save it, then
   uv run pyroforge-fetch-parts --from-file ~/All_Parts.fasta
 
-Both accept DNA or protein FASTA and detect which it is. Nothing here invents
-sequences: if the export cannot be read the script fails and the app reports the
-database as not provisioned, rather than answering queries against a stand-in.
+All three converge on the same translation, length filter and de-duplication, so a
+snapshot means the same thing whichever route built it — only the manifest's
+``source`` differs. The FASTA routes accept DNA or protein and detect which it is.
+
+Nothing here invents sequences: if the export cannot be read the script fails and
+the app reports the database as not provisioned, rather than answering queries
+against a stand-in.
 """
 
 from __future__ import annotations
@@ -147,12 +157,40 @@ def download(url: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--from-file", type=Path, help="A Registry export saved locally")
+    ap.add_argument("--from-file", type=Path, help="A Registry FASTA export saved locally")
+    ap.add_argument(
+        "--from-sql",
+        type=Path,
+        help="A mysqldump of the Registry's `parts` table (.sql or .sql.gz)",
+    )
     ap.add_argument("--url", default=DEFAULT_EXPORT_URL, help="Registry export URL")
     ap.add_argument("--out", type=Path, help="Override the output FASTA path")
     args = ap.parse_args()
 
     db = PartsDatabase(args.out)
+
+    if args.from_sql:
+        # Imported here, not at module scope: the SQL reader is only needed on this
+        # path and pulls in zlib/regex machinery the FASTA routes never touch.
+        from app.data.igem_sql import iter_parts
+
+        try:
+            records, row_stats = iter_parts(args.from_sql)
+        except (OSError, ValueError) as exc:
+            print(f"error: cannot read {args.from_sql}: {exc}", file=sys.stderr)
+            return 1
+        source = f"iGEM parts SQL dump: {args.from_sql.name}"
+        # Row-level rejections are reported separately from translation-level ones.
+        # They answer different questions — "what was in the dump" vs "what could be
+        # turned into a searchable protein" — and collapsing them hides which stage
+        # a missing part was lost at.
+        row_detail = (
+            f"{row_stats['rows']:,} rows in dump; {row_stats['kept']:,} with a usable "
+            f"sequence ({row_stats['deleted']:,} deleted/discontinued, "
+            f"{row_stats['no_sequence']:,} empty sequence)"
+        )
+        print(row_detail, file=sys.stderr)
+        return _write_snapshot(db, records, source, prefix=row_detail + "; ")
 
     if args.from_file:
         source = f"local file: {args.from_file}"
@@ -181,12 +219,27 @@ def main() -> int:
         print("error: no FASTA records found in the export", file=sys.stderr)
         return 1
 
+    return _write_snapshot(db, records, source)
+
+
+def _write_snapshot(
+    db: PartsDatabase,
+    records: list[tuple[str, str, str]],
+    source: str,
+    prefix: str = "",
+) -> int:
+    """Translate, filter and write the snapshot. Shared by all three input routes.
+
+    Keeping this common means a snapshot built from the SQL dump and one built from
+    the FASTA export are filtered identically — the manifest's ``source`` is the only
+    thing that differs, which is what makes the two comparable.
+    """
     proteins, stats = to_protein_records(records)
     if not proteins:
         print("error: no protein-coding parts survived translation", file=sys.stderr)
         return 1
 
-    detail = (
+    detail = prefix + (
         f"{stats['input']:,} records in export; {stats['translated']:,} kept "
         f"({stats['no_orf']:,} no ORF, {stats['too_short']:,} outside "
         f"{MIN_PROTEIN_LEN}-{MAX_PROTEIN_LEN} aa, {stats['duplicate']:,} duplicate)"

@@ -98,7 +98,7 @@ export function ProcurementCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Codon optimization and Twist Bioscience synthesis quote.
+          Codon optimization, then a hand-off to Twist Bioscience for ordering.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -118,14 +118,14 @@ export function ProcurementCard({
         )}
         {/* This card ends in a real order. The optimized variant is a model
             shortlist whose top-5 precision is ~74% on held-out proteins and as low
-            as 0% on individual ones, so it must not reach a synthesis quote
+            as 0% on individual ones, so it must not reach an order page
             without saying so. */}
         {variant === "optimized" && mutationCount > 0 && (
           <InfoNote
             tone="warning"
             summary={`This quote is for ${mutationCount} unvalidated predicted mutation${
               mutationCount === 1 ? "" : "s"
-            } — order the wild type as a control.`}
+            }, it is suggested to order the wild type as a control for comparison.`}
           >
             The optimizer returns a ranked shortlist for screening: on held-out
             proteins roughly a quarter of top-5 entries were not stabilizing, and
@@ -165,53 +165,9 @@ export function ProcurementCard({
                   {procurement.gc_content.toFixed(1)}%
                 </Text>
               </StatPaper>
-              {procurement.price_usd != null && (
-                <StatPaper>
-                  <Text size="xs" c="dimmed">
-                    {/* The label carries the distinction, not a footnote. A
-                        fabricated number formatted exactly like a quote is read
-                        as a quote. */}
-                    {procurement.price_is_estimate
-                      ? "Rough estimate (USD)"
-                      : "Twist quote (USD)"}
-                  </Text>
-                  <Text
-                    fw={700}
-                    ff="monospace"
-                    c={procurement.price_is_estimate ? "dimmed" : undefined}
-                  >
-                    {procurement.price_is_estimate ? "~" : ""}$
-                    {procurement.price_usd.toFixed(2)}
-                  </Text>
-                  {procurement.synthesis_product && (
-                    <Text size="xs" c="dimmed">
-                      {procurement.synthesis_product}
-                    </Text>
-                  )}
-                </StatPaper>
-              )}
-              {procurement.lead_time_days != null && (
-                <StatPaper>
-                  <Text size="xs" c="dimmed">
-                    Lead time
-                  </Text>
-                  <Text fw={700} ff="monospace">
-                    {procurement.lead_time_days} days
-                  </Text>
-                </StatPaper>
-              )}
             </SimpleGrid>
-            {procurement.price_is_estimate && procurement.price_basis && (
-              <InfoNote
-                tone="warning"
-                summary="This price is not a quote — Twist was not contacted."
-              >
-                {procurement.price_basis}
-              </InfoNote>
-            )}
             <Text size="xs" c="dimmed">
-              Status: {procurement.twist_status} · Organism:{" "}
-              {procurement.organism} · variant: {variant}
+              Organism: {procurement.organism} · variant: {variant}
             </Text>
             {procurement.feasibility_flags.length > 0 && (
               <Text size="xs">
@@ -251,7 +207,7 @@ export function ProcurementCard({
                   rel="noopener noreferrer"
                   size="xs"
                 >
-                  Current pricing
+                  Twist pricing ↗
                 </Anchor>
               )}
             </Group>

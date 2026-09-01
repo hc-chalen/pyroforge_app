@@ -59,10 +59,10 @@ class PartsDatabase:
                     "sequence — the other cards work normally."
                 ),
                 "admin_hint": (
-                    "Admin: build the snapshot with `uv run pyroforge-fetch-parts` "
-                    "(see docs/OPERATIONS.md). parts.igem.org is behind a CDN that "
-                    "returns 403 to server networks, so the --from-file path is "
-                    "usually the one that works."
+                    "Admin: build the snapshot with `uv run pyroforge-fetch-parts "
+                    "--from-sql <dump>` (see docs/OPERATIONS.md). The bulk FASTA "
+                    "endpoint now returns 403 from iGEM's own server, so the SQL "
+                    "dump from registry.igem.org is the route that works."
                 ),
             }
         meta: dict = {}

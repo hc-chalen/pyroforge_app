@@ -4,9 +4,24 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173,
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
+      "port": 5174,
       "cwd": "frontend"
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8001"
+      ],
+      "port": 8001,
+      "cwd": "backend"
     }
   ]
 }

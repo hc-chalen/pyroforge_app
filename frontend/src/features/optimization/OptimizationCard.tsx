@@ -24,57 +24,19 @@ import { optimize } from "@/services/optimize";
 import { StructureCompareCard } from "@/features/optimization/StructureCompareCard";
 import { useAnalysisStore } from "@/store/analysisStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import type { OptimizationResult, RankingQuality } from "@/types/api";
+import type { OptimizationResult } from "@/types/api";
 import { withheldOptimize } from "@/utils/answerability";
 import { isOptimizationStale } from "@/utils/sequenceVariant";
 
-function pct(value?: number): string {
-  return value == null ? "—" : `${Math.round(value * 100)}%`;
-}
-
-/**
- * States what the shortlist ordering is measured to be worth, and where it fails.
- *
- * The headline number sits on one line; the per-protein spread — which is the
- * part that stops a reader over-trusting the average — stays one click away
- * rather than being cut, because the mean alone hides the proteins where the
- * ranking fails outright.
- */
-function RankingQualityNote({ quality }: { quality?: RankingQuality | null }) {
-  if (!quality) return null;
-  const k = quality.headline_k ?? 5;
-  const precision = quality.top_k_precision?.[String(k)];
-  const baseRate = quality.base_rate_stabilizing;
-  if (precision == null || baseRate == null || !baseRate) return null;
-  const ci = quality.headline_precision_ci95;
-  const spearman = quality.median_within_protein_spearman;
-
-  return (
-    <InfoNote
-      summary={
-        <>
-          Measured: <strong>{pct(precision)}</strong> of a top-{k} shortlist was
-          truly stabilizing on {quality.n_proteins ?? "?"} held-out proteins, vs a{" "}
-          {pct(baseRate)} base rate.
-        </>
-      }
-      moreLabel="Spread"
-    >
-      {ci?.length === 2 ? `95% CI ${pct(ci[0])}–${pct(ci[1])}. ` : ""}
-      That is a {(precision / baseRate).toFixed(1)}× enrichment
-      {spearman != null
-        ? `, with a median within-protein rank correlation of ${spearman.toFixed(2)}`
-        : ""}
-      , but it is not uniform: per protein the precision ranged from{" "}
-      {pct(quality.headline_precision_min)} to {pct(quality.headline_precision_max)}
-      {quality.proteins_below_half_precision != null && quality.n_proteins
-        ? `, and fewer than half the shortlist was stabilizing for ${quality.proteins_below_half_precision} of the ${quality.n_proteins} proteins`
-        : ""}
-      . Screen the shortlist as a whole; do not commit to a single entry on this
-      evidence.
-    </InfoNote>
-  );
-}
+// REMOVED: RankingQualityNote, which rendered `optimization.ranking_quality` —
+// the held-out measurement of what the shortlist ordering is worth (74% of a top-5
+// shortlist truly stabilizing vs a 22% base rate, per-protein range 0–100%).
+//
+// It is still returned by the API and is still the strongest evidential claim this
+// app makes, so it needs a home: it is a fixed property of model_ddg, identical for
+// every run, which is exactly the kind of thing that belongs in the one-time user
+// notice rather than repeated on every result. Until that notice exists, the number
+// is not shown anywhere in the UI.
 
 interface OptimizationCardProps {
   analysisId: string;
@@ -148,23 +110,6 @@ export function OptimizationCard({
         {inputRefusal?.scope === "step" && (
           <WithheldNotice withheld={inputRefusal} />
         )}
-        <RankingQualityNote quality={optimization?.ranking_quality} />
-        <InfoNote summary="ΔΔG is a folding-stability change, not a predicted Tm gain.">
-          ΔΔG comes from the Tsuboyama small-domain assay; Tm from the Meltome
-          whole-protein assay. The two are only weakly related — corr(ΔG, Tm) is
-          +0.24 row-level and +0.17 per-protein across the 21 proteins carrying
-          both labels. Read a positive ΔΔG as “predicted more resistant to
-          unfolding”.
-          {(optimization?.mutations.length ?? 0) > 1 && (
-            <>
-              {" "}
-              The combined ΔΔG for this {optimization!.mutations.length}-mutation
-              variant is a further extrapolation: model_ddg was trained on single
-              substitutions, and selection assumes their effects add without
-              epistasis.
-            </>
-          )}
-        </InfoNote>
         {!modelsReady && !healthLoading && (
           <InfoNote tone="warning" summary="Model checkpoints are not loaded yet.">
             The first run asks the backend to load them; if the checkpoint files

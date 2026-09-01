@@ -242,14 +242,10 @@ export interface ProcureResponse {
   cai_reference: string;
   gc_content: number;
   feasibility_flags: string[];
-  price_usd?: number;
-  lead_time_days?: number;
-  twist_status: string;
+  /** No price or lead time is returned: this app cannot compute either, and the
+   *  fields that used to carry them carried invented numbers. Pricing lives on
+   *  Twist's own page. */
   vendor?: string | null;
-  /** True unless Twist's API actually returned this price. */
-  price_is_estimate: boolean;
-  price_basis?: string | null;
-  synthesis_product?: string | null;
   /** Twist's order page — where an actual order is placed. */
   order_url?: string | null;
   pricing_url?: string | null;

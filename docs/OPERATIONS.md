@@ -52,9 +52,12 @@ cp .env.example .env        # set DEVICE=cuda on the GPU host
 # 2. Bring the stack up (first boot downloads ESM-2 weights, ~2.5 GB)
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
-# 3. Build the iGEM parts snapshot the Registry search runs against
+# 3. Build the iGEM parts snapshot the Registry search runs against. Needs the
+#    Registry SQL dump copied in first — see "The iGEM parts snapshot" below.
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
-  exec backend uv run pyroforge-fetch-parts
+  cp sql_parts.sql.gz backend:/tmp/sql_parts.sql.gz
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
+  exec backend uv run pyroforge-fetch-parts --from-sql /tmp/sql_parts.sql.gz
 ```
 
 > **After a `git pull`, rebuild before running anything new.** The production
@@ -79,13 +82,37 @@ and every worker, so it survives an image rebuild and all containers see the
 same file). Until it exists the engine reports itself as `not_provisioned` and
 the UI says so — it will not answer queries against a stand-in database.
 
-`parts.igem.org` sits behind a CDN that returns **403 to a lot of server
-traffic**, so step 3 may fail on a campus network. In that case download the
-export in a browser and feed it in:
+**Step 3 no longer works on its own.** `https://parts.igem.org/fasta/parts/All_Parts`
+returns **403 from iGEM's own Apache** — not from the CDN in front of it, which is
+the difference that matters: the origin is refusing the path, so no retry,
+user-agent or different network brings it back. The endpoint is gone, not blocked.
+
+What the Registry does still publish is a **mysqldump of the `parts` table**,
+linked from `registry.igem.org`. It carries more than the FASTA did (part type and
+status as well as the sequence), so deleted and non-coding parts are dropped before
+translation instead of after. Download it in a browser, then:
 
 ```bash
-# Save https://parts.igem.org/fasta/parts/All_Parts from a browser, then:
-docker compose cp All_Parts.fasta backend:/tmp/All_Parts.fasta
+docker compose cp sql_parts.sql.gz backend:/tmp/sql_parts.sql.gz
+docker compose exec backend uv run pyroforge-fetch-parts --from-sql /tmp/sql_parts.sql.gz
+```
+
+Expect roughly (measured on the 2026-09 dump, ~52 MB gzipped):
+
+```
+84,285 rows in dump; 75,672 with a usable sequence (6,484 deleted/discontinued, 2,129 empty sequence)
+Wrote 22,294 protein parts → /app/data/igem_parts.fasta
+```
+
+The drop from 75,672 to 22,294 is expected and is not a failure: most Registry
+parts are promoters, RBSs, terminators and scars with no ORF, and 33,955 of the
+translated proteins are exact duplicates of another part. Parsing the dump takes
+about 15 s; translation a couple of minutes.
+
+If you have an older `All_Parts.fasta` from before the endpoint was withdrawn, that
+route still exists and produces an equivalent snapshot:
+
+```bash
 docker compose exec backend uv run pyroforge-fetch-parts --from-file /tmp/All_Parts.fasta
 ```
 
@@ -164,11 +191,13 @@ docker compose exec backend curl -X POST localhost:8000/api/v1/admin/train
 - **Sequences are sent to a third party.** `/api/v1/visualize/fold` posts the
   sequence to `api.esmatlas.com` (ESMFold). Unpublished sequences leave the
   server; say so to your users, or point `ESMFOLD_API_URL` at your own instance.
-- **Leave `TWIST_API_KEY` unset** on a public deployment. With it set,
-  `/api/v1/procure/quote` spends your Twist quota on behalf of anonymous callers.
-  Unset is the normal case, and the card then shows a local estimate labelled as
-  one (`price_is_estimate: true`) plus a link to Twist's own order page — it is
-  never presented as a quote. Ordering happens on Twist, not here.
+- **Nothing here quotes a price.** `TWIST_API_KEY` no longer exists, and
+  `/api/v1/procure/quote` returns no `price_usd` and no `lead_time_days` — both
+  used to be invented locally (a hard-coded per-bp band table, and
+  `10 if length < 1500 else 15`), and the second carried no estimate flag at all.
+  The card shows what the app actually computes — the CDS, its CAI against a stated
+  reference, GC content, feasibility flags — and links out. Pricing and ordering
+  are Twist's, not ours.
 - **Containers run as root** (neither Dockerfile sets `USER`), and the backend
   bind-mounts `./backend/checkpoints` and `~/.cache/torch` read-write. Worth
   fixing before this runs anywhere untrusted.

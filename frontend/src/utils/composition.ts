@@ -36,11 +36,18 @@ const N_RICH = new Set(["R", "K", "H", "Q", "N", "W"]);
 /** Aromatic rings (+ His imidazole) — the ring systems that survive to char. */
 const CHAR_PRECURSOR = new Set(["F", "Y", "W", "H"]);
 
-/** N/C above this reads as nitrogen-rich for a protein feedstock. */
-const HCN_WARN_NC = 0.3;
-const HCN_HIGH_NC = 0.34;
-
-export type HcnRisk = "low" | "elevated" | "high";
+// REMOVED: an `hcnRisk` classification with thresholds at N/C 0.30 and 0.34.
+//
+// The atom counts below are arithmetic and checkable. Those two numbers were
+// neither: they had no source, and they drove a user-visible "HCN risk: elevated /
+// high" badge — a safety-adjacent claim (HCN is hydrogen cyanide) resting on a
+// figure nobody could cite. They also fired on ordinary proteins. Average protein
+// N/C is ~0.275, but hen lysozyme is 0.315 and tripped "elevated" with nothing
+// unusual about it.
+//
+// The ratios are still reported. Turning one of them into a risk grade is a
+// judgement this repo cannot support, so it is left to the reader — pin the
+// thresholds to a pyrolysis reference and this can come back.
 
 export interface CompositionDescriptors {
   /** Residues actually counted (unknown letters are skipped). */
@@ -48,7 +55,6 @@ export interface CompositionDescriptors {
   ratios: { nc: number; oc: number; hc: number; sc: number; pc: number };
   nRichFraction: number;
   charPrecursorFraction: number;
-  hcnRisk: HcnRisk;
 }
 
 export function computeCompositionDescriptors(
@@ -83,13 +89,11 @@ export function computeCompositionDescriptors(
   h += 2;
   o += 1;
 
-  const nc = n / c;
   return {
     counted,
     // Canonical residues contain no phosphorus, so P/C is structurally 0.
-    ratios: { nc, oc: o / c, hc: h / c, sc: s / c, pc: 0 },
+    ratios: { nc: n / c, oc: o / c, hc: h / c, sc: s / c, pc: 0 },
     nRichFraction: nRich / counted,
     charPrecursorFraction: charPrecursor / counted,
-    hcnRisk: nc >= HCN_HIGH_NC ? "high" : nc >= HCN_WARN_NC ? "elevated" : "low",
   };
 }

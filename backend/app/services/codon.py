@@ -60,48 +60,64 @@ class CodonUsage:
 
 
 # ---------------------------------------------------------------------------
-# Observed codon usage. Values transcribed from the Kazusa Codon Usage Database
-# (https://www.kazusa.or.jp/codon/), which tabulates GenBank CDS codon counts.
+# Observed codon usage.
+#
+# The E. coli table is GENERATED, not transcribed — regenerate it with:
+#
+#     uv run python -m scripts.build_codon_table --organism ecoli
+#
+# That matters, because both previous versions of this table were wrong in ways
+# only hand-transcription produces. The first marked AAG/GAG/GCC/GTG as E. coli's
+# preferred codons, which is the *human* preference (E. coli prefers AAA over AAG
+# ~3.3:1 and GAA over GAG ~2.2:1). The replacement came from a Kazusa entry built
+# on **14 CDS / 5,122 codons** — a real table, but far too small to settle a
+# synonymous family: scoring the top-two margin in each family against Poisson
+# noise, 7 of the 18 multi-codon families were unresolved at 2σ (Asn 0.8σ, Tyr
+# 0.9σ, His 1.2σ, Cys 1.3σ, Arg 1.6σ, Ala 1.8σ, Phe 1.8σ).
+#
+# The current table is the whole MG1655 proteome — 4,297 CDS, 1.33 M codons, ~260×
+# the sample. It picks the same preferred codon in all 18 families as the 14-CDS
+# table did, so no output sequence changes; what changes is that those 7 families
+# are now decided at ≥5.6σ instead of by luck, and the weights (hence the reported
+# CAI) come off a real distribution.
 #
 # IMPORTANT — what these are and are not:
 #
-#   * They are *genome-wide* codon usage. Classical CAI (Sharp & Li 1987) scores
-#     against a **highly-expressed gene** reference set, which is a materially
-#     different (and for codon optimization, more useful) target. The CAI this
-#     module reports is therefore "adaptation to the genome-average gene", and
-#     the API labels it as such rather than implying Sharp & Li CAI.
-#   * The E. coli K-12 entry in Kazusa is built from only 14 CDS / 5,122 codons.
-#     It gets the large directional calls right — and notably corrects the table
-#     that used to live here, which marked AAG/GAG/GCC/GTG as E. coli's preferred
-#     codons when E. coli in fact prefers AAA over AAG ~2.7:1 and GAA over GAG
-#     ~2.4:1 (that set of "preferred" codons is the human one). But the sample is
-#     small and it should be replaced by a larger, highly-expressed reference set
-#     before these sequences are ordered. Because the weights are derived, that
-#     is a counts-only change.
+#   * They are *genome-wide* codon usage. Classical CAI (Sharp & Li 1987,
+#     NAR 15:1281-1295) scores against a **highly-expressed gene** reference set,
+#     which is a materially different (and for codon optimization, more useful)
+#     target. The CAI this module reports is therefore "adaptation to the
+#     genome-average gene", and the API labels it as such rather than implying
+#     Sharp & Li CAI.
+#   * The yeast entry is still transcribed from the Kazusa Codon Usage Database
+#     (https://www.kazusa.or.jp/codon/). Its sample is large enough not to have the
+#     resolution problem (14,411 CDS / 6.5 M codons), but it is not reproducible
+#     from this repo the way the E. coli one now is. `build_codon_table.py` knows
+#     how to regenerate it from RefSeq when that is worth doing.
 # ---------------------------------------------------------------------------
 CODON_USAGE: dict[str, CodonUsage] = {
     "ecoli": CodonUsage(
-        label="Escherichia coli K-12",
-        source="Kazusa Codon Usage Database (GenBank CDS)",
-        n_cds=14,
-        n_codons=5_122,
+        label="Escherichia coli K-12 MG1655",
+        source="NCBI RefSeq NC_000913.3, all annotated CDS",
+        n_cds=4_297,
+        n_codons=1_333_467,
         counts={
-            "TTT": 101, "TTC": 77, "TTA": 78, "TTG": 61,
-            "TCT": 29, "TCC": 28, "TCA": 40, "TCG": 41,
-            "TAT": 86, "TAC": 75, "TAA": 9, "TAG": 0,
-            "TGT": 30, "TGC": 41, "TGA": 5, "TGG": 55,
-            "CTT": 61, "CTC": 54, "CTA": 27, "CTG": 240,
-            "CCT": 43, "CCC": 33, "CCA": 34, "CCG": 137,
-            "CAT": 81, "CAC": 67, "CAA": 62, "CAG": 142,
-            "CGT": 108, "CGC": 133, "CGA": 22, "CGG": 21,
-            "ATT": 156, "ATC": 93, "ATA": 19, "ATG": 127,
-            "ACT": 41, "ACC": 117, "ACA": 33, "ACG": 59,
-            "AAT": 112, "AAC": 125, "AAA": 170, "AAG": 62,
-            "AGT": 37, "AGC": 85, "AGA": 7, "AGG": 8,
-            "GTT": 86, "GTC": 60, "GTA": 59, "GTG": 135,
-            "GCT": 55, "GCC": 162, "GCA": 108, "GCG": 197,
-            "GAT": 194, "GAC": 105, "GAA": 224, "GAG": 94,
-            "GGT": 109, "GGC": 171, "GGA": 47, "GGG": 44,
+            "AAA": 44_914, "AAC": 28_720, "AAG": 13_625, "AAT": 23_155,
+            "ACA": 9_150, "ACC": 31_300, "ACG": 19_167, "ACT": 11_761,
+            "AGA": 2_597, "AGC": 21_390, "AGG": 1_438, "AGT": 11_521,
+            "ATA": 5_517, "ATC": 33_712, "ATG": 37_212, "ATT": 40_686,
+            "CAA": 20_490, "CAC": 12_970, "CAG": 38_636, "CAT": 17_154,
+            "CCA": 11_214, "CCC": 7_259, "CCG": 31_254, "CCT": 9_272,
+            "CGA": 4_643, "CGC": 29_558, "CGG": 7_110, "CGT": 28_222,
+            "CTA": 5_175, "CTC": 14_891, "CTG": 71_053, "CTT": 14_639,
+            "GAA": 53_030, "GAC": 25_502, "GAG": 23_781, "GAT": 42_659,
+            "GCA": 26_879, "GCC": 34_272, "GCG": 45_348, "GCT": 20_311,
+            "GGA": 10_394, "GGC": 39_756, "GGG": 14_628, "GGT": 33_003,
+            "GTA": 14_524, "GTC": 20_440, "GTG": 35_182, "GTT": 24_376,
+            "TAA": 2_752, "TAC": 16_268, "TAG": 305, "TAT": 21_343,
+            "TCA": 9_361, "TCC": 11_466, "TCG": 11_887, "TCT": 11_196,
+            "TGA": 1_243, "TGC": 8_620, "TGG": 20_292, "TGT": 6_841,
+            "TTA": 18_385, "TTC": 22_100, "TTG": 18_234, "TTT": 29_684,
         },
     ),
     "yeast": CodonUsage(

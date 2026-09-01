@@ -1,5 +1,10 @@
-"""Procurement contract: an estimate must not be shaped like a quote, and the
-codon optimizer's reported metrics must actually vary with the input.
+"""Procurement contract: every number on the card is computed from the sequence,
+and the codon optimizer's reported metrics actually vary with the input.
+
+The card used to carry a price and a lead time. Both were invented — a hard-coded
+per-bp band table and `10 if length < 1500 else 15` — so they were removed rather
+than re-labelled, and `test_quote_states_no_price_or_lead_time` is what keeps them
+from coming back.
 """
 
 from __future__ import annotations
@@ -65,14 +70,37 @@ def test_optimizer_avoids_long_homopolymers() -> None:
     assert re.search(r"(.)\1{4,}", dna) is None
 
 
-def test_offline_price_is_marked_as_an_estimate() -> None:
-    quote = TwistService._offline_estimate("ATG" * 200)
-    assert quote["price_is_estimate"] is True
-    assert quote["twist_status"] == "estimated_offline"
-    # The basis has to say Twist was never contacted — this is the number that
-    # used to be rendered identically to a real quote.
-    assert "never contacted" in quote["price_basis"]
-    assert quote["order_url"].startswith("https://")
+def test_order_route_is_a_link_not_a_quote() -> None:
+    route = TwistService().order_route()
+    assert route["order_url"].startswith("https://")
+    assert route["pricing_url"].startswith("https://")
+    assert route["vendor"] == "Twist Bioscience"
+    # Nothing commercial is asserted by this app.
+    assert "price_usd" not in route
+    assert "lead_time_days" not in route
+
+
+@pytest.mark.parametrize("protein", [GFP, LYSOZYME])
+def test_quote_states_no_price_or_lead_time(protein) -> None:
+    """The regression guard. A price band table and `10 if length < 1500 else 15`
+    used to ship as `price_usd` and `lead_time_days`; the lead time carried no
+    estimate flag at all, so a made-up figure sat beside a labelled-estimate price
+    and read as fact. Neither field may return."""
+    result = ProcurementEngine().quote(protein)
+
+    for invented in (
+        "price_usd",
+        "lead_time_days",
+        "price_is_estimate",
+        "price_basis",
+        "synthesis_product",
+        "twist_status",
+    ):
+        assert invented not in result, f"{invented} is not something this app knows"
+    # What it does know still travels.
+    assert result["dna_sequence"]
+    assert result["cai_reference"]
+    assert result["order_url"]
 
 
 def test_quote_rejects_non_protein_input() -> None:
@@ -82,10 +110,9 @@ def test_quote_rejects_non_protein_input() -> None:
         ProcurementEngine().quote("MKAXLIVUGLZ" * 3)
 
 
-def test_quote_carries_the_order_route(monkeypatch) -> None:
-    monkeypatch.setattr("app.services.twist.settings.twist_api_key", "", raising=False)
+def test_quote_carries_the_order_route() -> None:
     result = ProcurementEngine().quote(LYSOZYME)
     assert result["order_url"]
-    assert result["price_is_estimate"] is True
+    assert result["vendor"] == "Twist Bioscience"
     assert result["cai_reference"]
     assert "NNN" not in result["dna_sequence"]

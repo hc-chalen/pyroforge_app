@@ -26,8 +26,10 @@ class ProcurementEngine:
         seq = ESM2Service.validate_sequence(protein_sequence)
         dna = self.codon.optimize(seq, organism)
         analysis = self.codon.analyze(dna, organism)
-        twist_quote = self.twist.get_quote(dna)
 
+        # Everything returned here is computed from the sequence. The vendor part of
+        # the payload is a link, not a price — see TwistService for why quoting was
+        # removed rather than better-labelled.
         return {
             "protein_sequence": seq,
             "dna_sequence": dna,
@@ -37,5 +39,5 @@ class ProcurementEngine:
             "cai_reference": analysis["cai_reference"],
             "gc_content": analysis["gc_content"],
             "feasibility_flags": analysis["feasibility_flags"],
-            **twist_quote,
+            **self.twist.order_route(),
         }

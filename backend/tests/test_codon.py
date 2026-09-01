@@ -4,11 +4,13 @@ These guard the property the previous hand-maintained weight tables broke: CAI
 relative adaptiveness must be normalized *within each synonymous family*, so the
 best codon of every family scores exactly 1.0. Without that, a perfectly
 codon-optimized gene scored 0.82 rather than 1.0 — a number that then reached the
-synthesis quote card as if it were a real CAI.
+procurement card as if it were a real CAI.
 
 Run directly (``python tests/test_codon.py``) or with ``pytest``.
 """
 from __future__ import annotations
+
+import math
 
 from app.services.codon import (
     CAI_EXCLUDED_AA,
@@ -72,6 +74,35 @@ def test_counts_match_published_totals() -> None:
             f"reports {usage.n_codons:,} codons — a transcription error"
         )
         assert set(usage.counts) == {c for cs in GENETIC_CODE.values() for c in cs}
+
+
+def test_every_family_resolves_its_preferred_codon() -> None:
+    """A table must be big enough to actually decide which codon a family prefers.
+
+    The optimizer's entire output is "the argmax of each synonymous family", so a
+    table where that argmax is within counting noise is picking codons by coin flip
+    while presenting the result as codon optimization. The E. coli table shipped in
+    that state: sourced from a 14 CDS / 5,122 codon Kazusa entry, 7 of the 18
+    multi-codon families were unresolved at 2σ (Asn 0.8σ, Tyr 0.9σ, His 1.2σ).
+
+    The margin is scored against Poisson noise on the top two counts. 3σ is a low
+    bar that any genome-scale census clears comfortably — MG1655 clears it by 5.6σ
+    in its tightest family (Arg) — and that is the point: this fails only for a
+    table too small to be making the claim at all.
+    """
+    for organism, usage in CODON_USAGE.items():
+        for aa, codons in GENETIC_CODE.items():
+            if aa in CAI_EXCLUDED_AA:
+                continue
+            top, second = sorted(codons, key=lambda c: -usage.counts[c])[:2]
+            n_top, n_second = usage.counts[top], usage.counts[second]
+            noise = math.sqrt(n_top + n_second)
+            margin = (n_top - n_second) / noise if noise else 0.0
+            assert margin >= 3.0, (
+                f"{organism} {aa}: {top}={n_top:,} vs {second}={n_second:,} is only "
+                f"{margin:.1f}σ — this table is too small to say which codon "
+                f"{aa} prefers, but the optimizer picks one anyway"
+            )
 
 
 def test_unobserved_codon_gets_a_floor_not_zero() -> None:

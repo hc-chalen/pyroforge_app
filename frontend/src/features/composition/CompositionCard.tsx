@@ -1,17 +1,9 @@
-import { Badge, Paper, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Paper, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useMemo } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
-import { InfoNote } from "@/components/ui/InfoNote";
 import { MetricLabel } from "@/components/ui/MetricLabel";
 import { StatPaper } from "@/components/ui/StatPaper";
 import { computeCompositionDescriptors } from "@/utils/composition";
-
-const RISK_COLOR = { low: "gray", elevated: "yellow", high: "orange" } as const;
-const RISK_LABEL = {
-  low: "HCN risk: low",
-  elevated: "HCN risk: elevated",
-  high: "HCN risk: high",
-} as const;
 
 interface CompositionCardProps {
   sequence: string;
@@ -53,21 +45,15 @@ export function CompositionCard({ sequence }: CompositionCardProps) {
   return (
     <Paper>
       <Stack gap="sm">
+        {/* No status badge. This card used to carry an "HCN risk: elevated / high"
+            grade driven by unsourced N/C thresholds — see utils/composition.ts. The
+            ratios below are arithmetic; grading them was not. */}
         <CardHeader
           eyebrow="Descriptors"
           title="Elemental & Pyrolysis Composition"
-          status={
-            <Badge
-              size="sm"
-              variant="light"
-              color={RISK_COLOR[d.hcnRisk]}
-            >
-              {RISK_LABEL[d.hcnRisk]}
-            </Badge>
-          }
         />
 
-        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="xs">
+        <SimpleGrid cols={{ base: 2, sm: 3, md: 5 }} spacing="xs">
           <Stat
             label="N/C"
             tooltip="Atomic nitrogen-to-carbon ratio of the peptide chain."
@@ -82,6 +68,14 @@ export function CompositionCard({ sequence }: CompositionCardProps) {
             label="H/C"
             tooltip="Atomic hydrogen-to-carbon ratio."
             value={r.hc.toFixed(3)}
+          />
+          {/* S/C was computed all along but only ever surfaced inside the removed
+              HCN warning, so deleting that note would have dropped it from the UI
+              entirely. It belongs with the other ratios. */}
+          <Stat
+            label="S/C"
+            tooltip="Atomic sulfur-to-carbon ratio — Cys and Met only."
+            value={r.sc.toFixed(3)}
           />
           <Stat
             label="P/C"
@@ -103,23 +97,6 @@ export function CompositionCard({ sequence }: CompositionCardProps) {
           />
         </SimpleGrid>
 
-        {d.hcnRisk !== "low" && (
-          <InfoNote
-            tone="warning"
-            summary={`Nitrogen content is high (N/C ${r.nc.toFixed(3)}, S/C ${r.sc.toFixed(3)}).`}
-          >
-            At high pyrolysis temperatures, nitrogen-rich feedstock tends to
-            route through HCN and N₂ rather than staying in the char. This flag
-            is a threshold on the counted N/C ratio, not a yield prediction.
-          </InfoNote>
-        )}
-
-        <InfoNote summary="Descriptors, not predictions — computed by atom counting from the sequence.">
-          These numbers come straight from residue formulas and letter counts.
-          No model, no training data, and no validated pyrolysis dataset stands
-          behind them. Read them as a description of the input composition, and
-          do not treat the HCN flag or the fractions as predicted outcomes.
-        </InfoNote>
       </Stack>
     </Paper>
   );

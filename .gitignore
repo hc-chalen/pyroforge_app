@@ -50,4 +50,14 @@ Desktop.ini
 /release/*
 !/release/MANIFEST.json
 
+# ---------------------------------------------------------------------------
+# iGEM Registry SQL dump — ~52 MB of third-party data, downloaded from
+# registry.igem.org and not ours to vendor. The snapshot built from it
+# (backend/data/igem_parts.fasta) is ignored separately; the *reader* in
+# backend/app/data/igem_sql.py IS tracked, so the build is reproducible from a
+# fresh download. See docs/OPERATIONS.md.
+# ---------------------------------------------------------------------------
+/sql_parts.sql.gz
+/*.sql.gz
+
 .cursor/

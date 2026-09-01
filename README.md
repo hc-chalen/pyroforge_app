@@ -147,7 +147,8 @@ curl http://localhost:8000/health
    (runs in the background; the page updates when it's done).
 5. **Fold & Visualize** — see the predicted 3-D structure with a stability
    heatmap.
-6. Optional: registry search, ordering quote, and embedding comparison.
+6. Optional: registry search, codon optimization for ordering, and embedding
+   comparison.
 
 ---
 
@@ -250,7 +251,7 @@ cd backend && uv run python scripts/inspect_pt.py
 | POST | `/api/v1/visualize/fold` | Predict the 3-D structure (ESMFold) |
 | POST | `/api/v1/visualize/heatmap` | Per-residue stability heatmap data |
 | POST | `/api/v1/registry/search` | Search a local iGEM parts snapshot (build it with `pyroforge-fetch-parts`; see docs/OPERATIONS.md) |
-| POST | `/api/v1/procure/quote` | Codon-optimize + get an ordering quote |
+| POST | `/api/v1/procure/quote` | Codon-optimize + CAI/GC/feasibility, plus a link to Twist (no price is quoted) |
 | POST | `/api/v1/embed/compare` | Compare two sequences' embeddings |
 
 ---
