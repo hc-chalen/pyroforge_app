@@ -70,6 +70,15 @@ data/**/*.pt
 data/**/*.csv
 data/**/*.parquet
 
+# ---------------------------------------------------------------------------
+# Benchmark corpora (S669 and friends) — third-party data, re-fetchable, and
+# ~44 MB of PDB files that are not ours to vendor. Rebuild with:
+#   uv run python -m scripts.bench.data --fetch
+# The *code* in scripts/bench/ IS tracked: a benchmark number that cannot be
+# reproduced from the repo cannot back a published claim.
+# ---------------------------------------------------------------------------
+data/bench/
+
 # --- Logs / scratch ---
 *.log
 logs/

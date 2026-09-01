@@ -1,0 +1,222 @@
+{
+ "benchmark": "Ssym_external",
+ "manifest": {
+  "dataset": "Ssym",
+  "reference": "Pucci et al., Bioinformatics 34(21):3659-3665 (2018)",
+  "direct_rows_in_csv": 342,
+  "rows_resolved": 342,
+  "rows_dropped_no_offset": 0,
+  "rows_scored": 342,
+  "proteins_scored": 15,
+  "mutations_per_protein": {
+   "1L63A": 118,
+   "2LZMA": 66,
+   "1LZ1A": 61,
+   "1EY0A": 28,
+   "2RN2A": 18,
+   "4LYZA": 14,
+   "1BNIA": 13,
+   "1VQBA": 5,
+   "5PTIA": 5,
+   "1AMQA": 4,
+   "1IHBA": 3,
+   "1CEYA": 3,
+   "1OH0A": 2,
+   "1IOBA": 1,
+   "1RN1C": 1
+  },
+  "proteins_with_5plus_mutations": 9,
+  "in_regime_rows": 342,
+  "in_regime_max_length": 400
+ },
+ "results": {
+  "model_ddg": {
+   "direct": {
+    "n": 342,
+    "pearson_r": 0.2790110111236572,
+    "spearman_rho": 0.21704861037488626,
+    "rmse": 1.6976969242095947,
+    "mae": 1.2404215335845947
+   },
+   "antisymmetry": {
+    "n": 342,
+    "r_dir_inv": -0.7689194679260254,
+    "bias_mean_sum": -0.06871429830789566,
+    "bias_std_sum": 0.1716654747724533,
+    "max_abs_sum": 0.9676956534385681
+   },
+   "within_protein_spearman": {
+    "n_proteins": 9,
+    "median": 0.49999999999999994,
+    "mean": 0.3796279993137765,
+    "q25": 0.3772665464812656,
+    "q75": 0.5011086366687488,
+    "values": [
+     0.6170822313419776,
+     -0.10817474806992518,
+     0.44779511759982255,
+     0.3772665464812656,
+     0.49999999999999994,
+     0.6405807055325781,
+     -0.059006495730479176,
+     0.5011086366687488,
+     0.49999999999999994
+    ]
+   },
+   "stabilizing_detection": {
+    "n_positive": 88,
+    "base_rate": 0.2573099415204678,
+    "roc_auc": 0.5559234073013599,
+    "average_precision": 0.33547414074359505
+   },
+   "top5_precision": {
+    "n_proteins": 9,
+    "k": 5,
+    "precision": 0.35555555555555557,
+    "values": [
+     0.0,
+     0.4,
+     0.4,
+     0.4,
+     0.0,
+     0.8,
+     1.0,
+     0.2,
+     0.0
+    ]
+   }
+  },
+  "esm2_zeroshot": {
+   "direct": {
+    "n": 342,
+    "pearson_r": 0.28863418102264404,
+    "spearman_rho": 0.303848758967687,
+    "rmse": 5.810817241668701,
+    "mae": 4.957730770111084
+   },
+   "antisymmetry": {
+    "n": 342,
+    "r_dir_inv": -1.0,
+    "bias_mean_sum": 0.0,
+    "bias_std_sum": 0.0,
+    "max_abs_sum": 0.0
+   },
+   "within_protein_spearman": {
+    "n_proteins": 9,
+    "median": 0.3784043957757898,
+    "mean": 0.3692073010161042,
+    "q25": 0.2617089820423566,
+    "q75": 0.4094219702673759,
+    "values": [
+     0.2617089820423566,
+     -0.12761881671034214,
+     0.4094219702673759,
+     0.400837429343205,
+     0.3,
+     0.3784043957757898,
+     0.05176008397410454,
+     0.7483516644524486,
+     0.8999999999999998
+    ]
+   },
+   "stabilizing_detection": {
+    "n_positive": 88,
+    "base_rate": 0.2573099415204678,
+    "roc_auc": 0.5748926270579815,
+    "average_precision": 0.3658844423125991
+   },
+   "top5_precision": {
+    "n_proteins": 9,
+    "k": 5,
+    "precision": 0.3777777777777778,
+    "values": [
+     0.0,
+     0.2,
+     0.6,
+     0.4,
+     0.0,
+     0.8,
+     1.0,
+     0.4,
+     0.0
+    ]
+   }
+  },
+  "random": {
+   "direct": {
+    "n": 342,
+    "pearson_r": 0.08081528544425964,
+    "spearman_rho": 0.05863553713602774,
+    "rmse": 2.0016918182373047,
+    "mae": 1.4978705644607544
+   },
+   "antisymmetry": {
+    "n": 342,
+    "r_dir_inv": -1.0,
+    "bias_mean_sum": 0.0,
+    "bias_std_sum": 0.0,
+    "max_abs_sum": 0.0
+   },
+   "within_protein_spearman": {
+    "n_proteins": 9,
+    "median": -0.023036761703316932,
+    "mean": -0.022896720126464844,
+    "q25": -0.11699893279050083,
+    "q75": 0.024603764245777166,
+    "values": [
+     -0.1652898833951726,
+     -0.06216624762499498,
+     0.01839002575930338,
+     0.024603764245777166,
+     0.7,
+     -0.023036761703316932,
+     0.2184275543707212,
+     -0.11699893279050083,
+     -0.7999999999999999
+    ]
+   },
+   "stabilizing_detection": {
+    "n_positive": 88,
+    "base_rate": 0.2573099415204678,
+    "roc_auc": 0.5396832498210451,
+    "average_precision": 0.327379341794543
+   },
+   "top5_precision": {
+    "n_proteins": 9,
+    "k": 5,
+    "precision": 0.2888888888888889,
+    "values": [
+     0.0,
+     0.4,
+     0.6,
+     0.2,
+     0.0,
+     0.4,
+     1.0,
+     0.0,
+     0.0
+    ]
+   }
+  }
+ },
+ "paired_comparisons": {
+  "within_protein__model_ddg_vs_esm2_zeroshot": {
+   "delta": 0.12159560422421012,
+   "ci95": [
+    -0.24724302778369978,
+    0.23939965462639223
+   ],
+   "p_sign_flip": 0.1105,
+   "n_boot": 2000
+  },
+  "within_protein__model_ddg_vs_random": {
+   "delta": 0.5230367617033169,
+   "ci95": [
+    0.003159751894515804,
+    0.6652898833951726
+   ],
+   "p_sign_flip": 0.017,
+   "n_boot": 2000
+  }
+ }
+}

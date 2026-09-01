@@ -1,0 +1,525 @@
+{
+ "benchmark": "ssym_deep_shortlist",
+ "purpose": "External test of the optimizer's top-k shortlist on the only external proteins deep enough to support it.",
+ "dataset": "Ssym",
+ "reference": "Pucci et al., Bioinformatics 34(21):3659-3665 (2018)",
+ "min_mutations_per_protein": 20,
+ "statistics_note": "Intervals resample mutations WITHIN a protein; with 4 qualifying proteins a bootstrap over proteins would have no power. Per-protein values are the result.",
+ "n_proteins": 4,
+ "proteins": {
+  "1L63A": 118,
+  "2LZMA": 66,
+  "1LZ1A": 61,
+  "1EY0A": 28
+ },
+ "internal_reference_under_test": {
+  "source": "ddg_grouped_cv.json",
+  "n_proteins": 262,
+  "base_rate": 0.2078,
+  "top_k_precision": {
+   "1": 0.7328,
+   "3": 0.7405,
+   "5": 0.7359,
+   "10": 0.7031
+  }
+ },
+ "per_protein": {
+  "1L63A": {
+   "n_mutations": 118,
+   "n_stabilizing": 20,
+   "base_rate": 0.1694915254237288,
+   "methods": {
+    "model_ddg": {
+     "1": {
+      "precision": 0.0,
+      "enrichment_vs_base_rate": 0.0,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.3333333333333333,
+      "enrichment_vs_base_rate": 1.9666666666666666,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.4,
+      "enrichment_vs_base_rate": 2.3600000000000003,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "10": {
+      "precision": 0.6,
+      "enrichment_vs_base_rate": 3.54,
+      "within_protein_ci95": [
+       0.2,
+       0.8
+      ]
+     }
+    },
+    "esm2_zeroshot": {
+     "1": {
+      "precision": 1.0,
+      "enrichment_vs_base_rate": 5.9,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 1.0,
+      "enrichment_vs_base_rate": 5.9,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.6,
+      "enrichment_vs_base_rate": 3.54,
+      "within_protein_ci95": [
+       0.2,
+       1.0
+      ]
+     },
+     "10": {
+      "precision": 0.4,
+      "enrichment_vs_base_rate": 2.3600000000000003,
+      "within_protein_ci95": [
+       0.1,
+       0.8
+      ]
+     }
+    }
+   },
+   "random": {
+    "1": {
+     "mean": 0.1725,
+     "ci95": [
+      0.0,
+      1.0
+     ]
+    },
+    "3": {
+     "mean": 0.1695,
+     "ci95": [
+      0.0,
+      0.6666666666666666
+     ]
+    },
+    "5": {
+     "mean": 0.1674,
+     "ci95": [
+      0.0,
+      0.6
+     ]
+    },
+    "10": {
+     "mean": 0.1674,
+     "ci95": [
+      0.0,
+      0.4
+     ]
+    }
+   }
+  },
+  "2LZMA": {
+   "n_mutations": 66,
+   "n_stabilizing": 18,
+   "base_rate": 0.2727272727272727,
+   "methods": {
+    "model_ddg": {
+     "1": {
+      "precision": 0.0,
+      "enrichment_vs_base_rate": 0.0,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.6666666666666666,
+      "enrichment_vs_base_rate": 2.4444444444444446,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.8,
+      "enrichment_vs_base_rate": 2.9333333333333336,
+      "within_protein_ci95": [
+       0.2,
+       1.0
+      ]
+     },
+     "10": {
+      "precision": 0.8,
+      "enrichment_vs_base_rate": 2.9333333333333336,
+      "within_protein_ci95": [
+       0.4,
+       1.0
+      ]
+     }
+    },
+    "esm2_zeroshot": {
+     "1": {
+      "precision": 1.0,
+      "enrichment_vs_base_rate": 3.666666666666667,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.6666666666666666,
+      "enrichment_vs_base_rate": 2.4444444444444446,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.8,
+      "enrichment_vs_base_rate": 2.9333333333333336,
+      "within_protein_ci95": [
+       0.2,
+       1.0
+      ]
+     },
+     "10": {
+      "precision": 0.5,
+      "enrichment_vs_base_rate": 1.8333333333333335,
+      "within_protein_ci95": [
+       0.2,
+       0.9
+      ]
+     }
+    }
+   },
+   "random": {
+    "1": {
+     "mean": 0.27,
+     "ci95": [
+      0.0,
+      1.0
+     ]
+    },
+    "3": {
+     "mean": 0.2753333333333333,
+     "ci95": [
+      0.0,
+      0.6666666666666666
+     ]
+    },
+    "5": {
+     "mean": 0.2759,
+     "ci95": [
+      0.0,
+      0.6
+     ]
+    },
+    "10": {
+     "mean": 0.2733,
+     "ci95": [
+      0.0,
+      0.5
+     ]
+    }
+   }
+  },
+  "1LZ1A": {
+   "n_mutations": 61,
+   "n_stabilizing": 14,
+   "base_rate": 0.22950819672131148,
+   "methods": {
+    "model_ddg": {
+     "1": {
+      "precision": 0.0,
+      "enrichment_vs_base_rate": 0.0,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.0,
+      "enrichment_vs_base_rate": 0.0,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.4,
+      "enrichment_vs_base_rate": 1.7428571428571429,
+      "within_protein_ci95": [
+       0.0,
+       0.8
+      ]
+     },
+     "10": {
+      "precision": 0.5,
+      "enrichment_vs_base_rate": 2.1785714285714284,
+      "within_protein_ci95": [
+       0.1,
+       0.8
+      ]
+     }
+    },
+    "esm2_zeroshot": {
+     "1": {
+      "precision": 1.0,
+      "enrichment_vs_base_rate": 4.357142857142857,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.6666666666666666,
+      "enrichment_vs_base_rate": 2.9047619047619047,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.4,
+      "enrichment_vs_base_rate": 1.7428571428571429,
+      "within_protein_ci95": [
+       0.0,
+       0.8
+      ]
+     },
+     "10": {
+      "precision": 0.3,
+      "enrichment_vs_base_rate": 1.3071428571428572,
+      "within_protein_ci95": [
+       0.0,
+       0.6
+      ]
+     }
+    }
+   },
+   "random": {
+    "1": {
+     "mean": 0.235,
+     "ci95": [
+      0.0,
+      1.0
+     ]
+    },
+    "3": {
+     "mean": 0.2316666666666667,
+     "ci95": [
+      0.0,
+      0.6666666666666666
+     ]
+    },
+    "5": {
+     "mean": 0.2275,
+     "ci95": [
+      0.0,
+      0.6
+     ]
+    },
+    "10": {
+     "mean": 0.22415000000000002,
+     "ci95": [
+      0.0,
+      0.5
+     ]
+    }
+   }
+  },
+  "1EY0A": {
+   "n_mutations": 28,
+   "n_stabilizing": 11,
+   "base_rate": 0.39285714285714285,
+   "methods": {
+    "model_ddg": {
+     "1": {
+      "precision": 1.0,
+      "enrichment_vs_base_rate": 2.5454545454545454,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.6666666666666666,
+      "enrichment_vs_base_rate": 1.696969696969697,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.4,
+      "enrichment_vs_base_rate": 1.0181818181818183,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "10": {
+      "precision": 0.3,
+      "enrichment_vs_base_rate": 0.7636363636363637,
+      "within_protein_ci95": [
+       0.0,
+       0.6
+      ]
+     }
+    },
+    "esm2_zeroshot": {
+     "1": {
+      "precision": 1.0,
+      "enrichment_vs_base_rate": 2.5454545454545454,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "3": {
+      "precision": 0.3333333333333333,
+      "enrichment_vs_base_rate": 0.8484848484848485,
+      "within_protein_ci95": [
+       0.0,
+       1.0
+      ]
+     },
+     "5": {
+      "precision": 0.2,
+      "enrichment_vs_base_rate": 0.5090909090909091,
+      "within_protein_ci95": [
+       0.0,
+       0.6
+      ]
+     },
+     "10": {
+      "precision": 0.2,
+      "enrichment_vs_base_rate": 0.5090909090909091,
+      "within_protein_ci95": [
+       0.0,
+       0.5
+      ]
+     }
+    }
+   },
+   "random": {
+    "1": {
+     "mean": 0.401,
+     "ci95": [
+      0.0,
+      1.0
+     ]
+    },
+    "3": {
+     "mean": 0.3911666666666666,
+     "ci95": [
+      0.0,
+      1.0
+     ]
+    },
+    "5": {
+     "mean": 0.392,
+     "ci95": [
+      0.0,
+      0.8
+     ]
+    },
+    "10": {
+     "mean": 0.39175,
+     "ci95": [
+      0.2,
+      0.6
+     ]
+    }
+   }
+  }
+ },
+ "aggregate": {
+  "model_ddg": {
+   "1": {
+    "mean": 0.25,
+    "median": 0.0,
+    "min": 0.0,
+    "max": 1.0,
+    "n_proteins": 4
+   },
+   "3": {
+    "mean": 0.41666666666666663,
+    "median": 0.5,
+    "min": 0.0,
+    "max": 0.6666666666666666,
+    "n_proteins": 4
+   },
+   "5": {
+    "mean": 0.5,
+    "median": 0.4,
+    "min": 0.4,
+    "max": 0.8,
+    "n_proteins": 4
+   },
+   "10": {
+    "mean": 0.5499999999999999,
+    "median": 0.55,
+    "min": 0.3,
+    "max": 0.8,
+    "n_proteins": 4
+   }
+  },
+  "esm2_zeroshot": {
+   "1": {
+    "mean": 1.0,
+    "median": 1.0,
+    "min": 1.0,
+    "max": 1.0,
+    "n_proteins": 4
+   },
+   "3": {
+    "mean": 0.6666666666666666,
+    "median": 0.6666666666666666,
+    "min": 0.3333333333333333,
+    "max": 1.0,
+    "n_proteins": 4
+   },
+   "5": {
+    "mean": 0.49999999999999994,
+    "median": 0.5,
+    "min": 0.2,
+    "max": 0.8,
+    "n_proteins": 4
+   },
+   "10": {
+    "mean": 0.35,
+    "median": 0.35,
+    "min": 0.2,
+    "max": 0.5,
+    "n_proteins": 4
+   }
+  },
+  "random": {
+   "1": {
+    "mean": 0.269625
+   },
+   "3": {
+    "mean": 0.26691666666666664
+   },
+   "5": {
+    "mean": 0.2657
+   },
+   "10": {
+    "mean": 0.26415
+   }
+  },
+  "base_rate_mean": 0.26614603443236395
+ }
+}
