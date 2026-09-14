@@ -189,16 +189,26 @@ export function ProcurementCard({
                 )}
               </CopyButton>
               {procurement.order_url && (
-                <Button
-                  component="a"
-                  href={procurement.order_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="outline"
-                  color="brand"
-                >
-                  Order at {procurement.vendor ?? "Twist"} ↗
-                </Button>
+                /* Copies on the way out: Twist cannot be deep-linked with a
+                   sequence, so arriving there without the CDS on the clipboard
+                   means going back for it. */
+                <CopyButton value={procurement.dna_sequence} timeout={2000}>
+                  {({ copied, copy }) => (
+                    <Button
+                      component="a"
+                      href={procurement.order_url ?? undefined}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={copy}
+                      variant="outline"
+                      color="brand"
+                    >
+                      {copied
+                        ? "CDS copied ↗"
+                        : `Order at ${procurement.vendor ?? "Twist"} ↗`}
+                    </Button>
+                  )}
+                </CopyButton>
               )}
               {procurement.pricing_url && (
                 <Anchor
@@ -211,6 +221,11 @@ export function ProcurementCard({
                 </Anchor>
               )}
             </Group>
+            <Text size="xs" c="dimmed">
+              Ordering opens {procurement.vendor ?? "Twist"} and needs an account
+              there. The CDS is copied to your clipboard on the way — paste it
+              into their sequence upload.
+            </Text>
           </Stack>
         )}
         <Group>

@@ -3,7 +3,15 @@ from __future__ import annotations
 # Twist's ordering app. There is no documented deep link that pre-fills a
 # sequence, so the UI sends the user here with the CDS on their clipboard rather
 # than pretending an order was placed.
-TWIST_ORDER_URL = "https://ecommerce.twistdna.com/app/genes"
+#
+# Both of these are Twist's own links, not guesses: ORDER is where the "START
+# ORDER" button on the pricing page below points. Take them from there again if
+# they rot — checked 2026-09-14, when ORDER was still ".../app/genes" here and
+# rendered a permanently blank page, because the route is "gene", singular.
+#
+# ORDER redirects to id.twistdna.com unless the visitor already has a Twist
+# session, so the card says an account is needed rather than promising a page.
+TWIST_ORDER_URL = "https://ecommerce.twistdna.com/app/gene"
 TWIST_PRICING_URL = "https://www.twistbioscience.com/products/genes"
 
 
