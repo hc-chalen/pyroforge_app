@@ -57,7 +57,10 @@ Desktop.ini
 # backend/app/data/igem_sql.py IS tracked, so the build is reproducible from a
 # fresh download. See docs/OPERATIONS.md.
 # ---------------------------------------------------------------------------
-/sql_parts.sql.gz
-/*.sql.gz
+# Unanchored on purpose: the natural place to drop the dump on a server is
+# backend/data/, which is bind-mounted into the container — and a root-anchored
+# rule would not cover it.
+*.sql.gz
+*.sql
 
 .cursor/
