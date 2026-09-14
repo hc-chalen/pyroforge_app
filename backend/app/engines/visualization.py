@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 from pathlib import Path
 
@@ -14,6 +15,17 @@ ESMFOLD_MIN_LENGTH = 10
 RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
 MAX_FOLD_RETRIES = 3
 FOLD_READ_TIMEOUT_S = 300.0
+
+logger = logging.getLogger(__name__)
+
+
+class FoldServiceUnavailable(ValueError):
+    """A fold endpoint could not answer: timeout, unreachable, or a retryable status.
+
+    Still a ValueError, so callers that only report the message are unchanged.
+    Distinct so the engine can tell "try the fallback" apart from "this sequence
+    is the problem".
+    """
 
 
 class VisualizationEngine:
@@ -46,7 +58,29 @@ class VisualizationEngine:
             )
         return seq
 
+    @staticmethod
+    def _fold_endpoints() -> list[str]:
+        endpoints = [settings.esmfold_api_url]
+        fallback = settings.esmfold_fallback_api_url
+        if fallback and fallback != settings.esmfold_api_url:
+            endpoints.append(fallback)
+        return endpoints
+
     def _fetch_pdb_from_esmfold(self, seq: str) -> str:
+        """Fold via the primary endpoint; move to the fallback only if it is down.
+
+        Only an availability failure moves on. A sequence the primary rejected
+        would be rejected by the fallback too, so that error is raised at once.
+        """
+        *primaries, last = self._fold_endpoints()
+        for url in primaries:
+            try:
+                return self._fetch_pdb_from(url, seq)
+            except FoldServiceUnavailable as exc:
+                logger.warning("Fold endpoint %s unavailable (%s); trying %s", url, exc, last)
+        return self._fetch_pdb_from(last, seq)
+
+    def _fetch_pdb_from(self, url: str, seq: str) -> str:
         timeout = httpx.Timeout(
             connect=30.0,
             read=FOLD_READ_TIMEOUT_S,
@@ -59,8 +93,8 @@ class VisualizationEngine:
             try:
                 with httpx.Client(timeout=timeout) as client:
                     response = client.post(
-                        settings.esmfold_api_url,
-                        data=seq,
+                        url,
+                        content=seq,
                         headers={"Content-Type": "text/plain"},
                     )
                     if response.status_code in RETRYABLE_STATUS_CODES:
@@ -70,9 +104,9 @@ class VisualizationEngine:
             except httpx.TimeoutException as exc:
                 last_error = exc
                 if attempt == MAX_FOLD_RETRIES - 1:
-                    raise ValueError(
-                        "ESMFold API timed out. Try a shorter sequence or retry "
-                        "in a few minutes.",
+                    raise FoldServiceUnavailable(
+                        "The ESMFold service timed out. This is a server-side problem, "
+                        "not your sequence — retry in a few minutes.",
                     ) from exc
             except httpx.HTTPStatusError as exc:
                 last_error = exc
@@ -84,13 +118,13 @@ class VisualizationEngine:
             except httpx.HTTPError as exc:
                 last_error = exc
                 if attempt == MAX_FOLD_RETRIES - 1:
-                    raise ValueError(
-                        "Could not reach the ESMFold API. Check your network and retry.",
+                    raise FoldServiceUnavailable(
+                        "Could not reach the ESMFold service. Retry in a few minutes.",
                     ) from exc
 
             time.sleep(2**attempt)
 
-        raise ValueError(
+        raise FoldServiceUnavailable(
             "ESMFold structure prediction failed after multiple attempts.",
         ) from last_error
 
@@ -103,7 +137,7 @@ class VisualizationEngine:
                 f"between {ESMFOLD_MIN_LENGTH} and {ESMFOLD_MAX_LENGTH} residues.",
             )
         if status in RETRYABLE_STATUS_CODES:
-            return ValueError(
+            return FoldServiceUnavailable(
                 f"ESMFold API error ({status}). The service may be overloaded — "
                 "please retry in a few minutes.",
             )

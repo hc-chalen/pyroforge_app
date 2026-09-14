@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+import re
+
+# Whole numbers only: the "504" inside "length 5041" is not a gateway timeout.
+_GATEWAY_TIMEOUT = re.compile(r"\b504\b")
+_UNPROCESSABLE = re.compile(r"\b422\b")
+
 
 def format_task_error(error: object | None) -> str:
     if error is None:
@@ -10,12 +16,12 @@ def format_task_error(error: object | None) -> str:
         return "Task failed with no error details."
 
     lowered = message.lower()
-    if "504" in message or "gateway timeout" in lowered:
+    if _GATEWAY_TIMEOUT.search(message) or "gateway timeout" in lowered:
         return (
-            "ESMFold API timed out. Try a shorter sequence (under 400 residues) "
-            "or retry in a few minutes."
+            "The structure prediction service timed out. This is a server-side "
+            "problem, not your sequence — retry in a few minutes."
         )
-    if "422" in message or "rejected this sequence" in lowered:
+    if _UNPROCESSABLE.search(message) or "rejected this sequence" in lowered:
         return (
             "ESMFold rejected this sequence. Use a valid protein sequence "
             "between 10 and 400 residues."
@@ -26,7 +32,7 @@ def format_task_error(error: object | None) -> str:
         return message
     if "timed out" in lowered:
         return message
-    if "could not reach the esmfold api" in lowered:
+    if "could not reach the esmfold" in lowered:
         return message
     if "esmfold api error" in lowered:
         return message

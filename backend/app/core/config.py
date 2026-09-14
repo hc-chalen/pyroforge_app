@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     preload_esm2_on_startup: bool = True
 
     esmfold_api_url: str = "https://api.esmatlas.com/foldSequence/v1/pdb/"
+    # Tried only when esmfold_api_url is unavailable (timeout, unreachable, 5xx/429).
+    # The GPU stack points esmfold_api_url at the self-hosted service
+    # (services/esmfold) and this at the public ESM Atlas API, which still serves
+    # sequences it has folded before. Empty = no fallback.
+    esmfold_fallback_api_url: str = ""
     # NOTE: igem_api_base was removed with the per-hit metadata fetch. That endpoint
     # (parts.igem.org/cgi/xml/part.cgi) sits behind a CDN that returns 403 to server
     # traffic, so every lookup failed and returned an empty description — after

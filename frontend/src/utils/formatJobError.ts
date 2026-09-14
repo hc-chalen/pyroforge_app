@@ -5,13 +5,14 @@ export function formatJobError(error: string | undefined, fallback: string): str
   const message = error.trim();
   const lowered = message.toLowerCase();
 
-  if (message.includes("504") || lowered.includes("gateway timeout")) {
+  // Whole numbers only: the "504" inside "length 5041" is not a gateway timeout.
+  if (/\b504\b/.test(message) || lowered.includes("gateway timeout")) {
     return (
-      "ESMFold API timed out. Try a shorter sequence (under 400 residues) " +
-      "or retry in a few minutes."
+      "The structure prediction service timed out. This is a server-side " +
+      "problem, not your sequence — retry in a few minutes."
     );
   }
-  if (message.includes("422") || lowered.includes("rejected this sequence")) {
+  if (/\b422\b/.test(message) || lowered.includes("rejected this sequence")) {
     return (
       "ESMFold rejected this sequence. Use a valid protein sequence " +
       "between 10 and 400 residues."
@@ -20,7 +21,7 @@ export function formatJobError(error: string | undefined, fallback: string): str
   if (lowered.includes("exceeds the esmfold limit")) return message;
   if (lowered.includes("invalid amino acid")) return message;
   if (lowered.includes("timed out")) return message;
-  if (lowered.includes("could not reach the esmfold api")) return message;
+  if (lowered.includes("could not reach the esmfold")) return message;
   if (lowered.includes("esmfold api error")) return message;
   if (lowered.includes("httperror") || lowered.includes("httpstatuserror")) {
     return (

@@ -24,9 +24,10 @@ unauthenticated: whoever can reach the port can use it.
               └───────────────────┬──────────────────────────┘
                                   │ /api/
                                   ▼
-                                        ┌─► worker-fast   (GPU) predict, registry
-                    :8000 backend ──► redis ─► worker-heavy  (GPU) optimize, train
-                                        └─► worker-io          fold (ESMFold API)
+                                        ┌─► worker-fast   (GPU 0) predict, registry
+                    :8000 backend ──► redis ─► worker-heavy  (GPU 0) optimize, train
+                                        └─► worker-io           fold ──► esmfold (GPU 1)
+                                                                    └─► api.esmatlas.com (fallback)
 ```
 
 `:3002` is the *only* published port in the production stack. The backend and
@@ -49,10 +50,13 @@ cd ~/pyroforge_app
 # 1. Environment
 cp .env.example .env        # set DEVICE=cuda on the GPU host
 
-# 2. Bring the stack up (first boot downloads ESM-2 weights, ~2.5 GB)
+# 2. ESMFold weights, once (~10 GB into ~/.cache/huggingface). The esmfold
+#    container mounts them and never downloads — see "Self-hosted ESMFold" below.
+
+# 3. Bring the stack up (first boot downloads ESM-2 weights, ~2.5 GB)
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 
-# 3. Build the iGEM parts snapshot the Registry search runs against. Needs the
+# 4. Build the iGEM parts snapshot the Registry search runs against. Needs the
 #    Registry SQL dump copied in first — see "The iGEM parts snapshot" below.
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
   cp sql_parts.sql.gz backend:/tmp/sql_parts.sql.gz
@@ -73,6 +77,49 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml \
 > Pass the same `-f` flags to every `docker compose` call. Without them compose
 > merges `docker-compose.override.yml` (the dev stack) and you are configuring a
 > different set of services than the one you are running.
+
+### Self-hosted ESMFold
+
+3D structures come from `esmfold`, a container on its own card (`ESMFOLD_GPU`,
+default 1) built from [services/esmfold](../services/esmfold). It answers the same
+request as `api.esmatlas.com/foldSequence/v1/pdb/`, and the public API stays
+configured as the fallback for when it is down.
+
+Why not the public API alone: it has no SLA, its repository was archived in August
+2024, and in September 2026 it returned `504` after 30 s for every sequence it had
+not folded before — only previously folded sequences still came back.
+
+The container runs offline and mounts the weights from the host, so fetch them
+once, as the user whose `HOME` the stack runs with (`HOME` in
+`deploy/pyroforge.service` if you use it). `benchmark.py` downloads them and
+measures the card at the same time:
+
+```bash
+python3 -m venv ~/esmfold-venv && source ~/esmfold-venv/bin/activate
+pip install torch --index-url https://download.pytorch.org/whl/cu130
+pip install transformers==5.17.0 accelerate==1.15.0
+CUDA_VISIBLE_DEVICES=1 python services/esmfold/benchmark.py --out ~/benchmark_out
+```
+
+Measured on an RTX 2080 Ti (22 GB), 2026-09-14:
+
+| Residues | Fold time | Peak VRAM |
+|---|---|---|
+| 84 | 3.3 s | 7.98 GB |
+| 100 | 2.2 s | 8.00 GB |
+| 200 | 4.4 s | 8.20 GB |
+| 300 | 11.2 s | 8.53 GB |
+| 400 | 22.8 s | 8.99 GB |
+
+The service folds **one sequence at a time**: a second concurrent fold on the same
+card competes for the same compute and adds no throughput. Up to
+`ESMFOLD_MAX_WAITING` (8) requests wait behind it; past that it answers `503`, and
+the worker retries and then moves to the fallback. 8 is sized so the last request
+in a full queue of 400-residue folds (~205 s) still finishes inside the worker's
+300 s read timeout.
+
+If one card stops being enough, add a second card rather than more concurrency on
+this one — the worker does not yet spread load across two `esmfold` containers.
 
 ### The iGEM parts snapshot
 
@@ -146,6 +193,9 @@ sudo systemctl daemon-reload && sudo systemctl enable --now pyroforge
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3002/                  # 200, the SPA
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3002/api/v1/admin/train # 403, blocked
 docker compose exec backend curl -s localhost:8000/health                        # backend
+docker compose exec worker-io wget -qO- http://esmfold:8000/health               # esmfold, as the worker sees it
+docker compose exec worker-io sh -c \
+  'wget -qO- --post-data=MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQ http://esmfold:8000/foldSequence/v1/pdb/ | head -3'
 ```
 
 ---
@@ -188,9 +238,11 @@ docker compose exec backend curl -X POST localhost:8000/api/v1/admin/train
   tailnet-only deployment.
 - **Plain `http://` is readable in transit** on a shared LAN. Put TLS in front
   before handing the link out beyond a trusted network.
-- **Sequences are sent to a third party.** `/api/v1/visualize/fold` posts the
-  sequence to `api.esmatlas.com` (ESMFold). Unpublished sequences leave the
-  server; say so to your users, or point `ESMFOLD_API_URL` at your own instance.
+- **Sequences can reach a third party.** `/api/v1/visualize/fold` goes to the
+  self-hosted `esmfold` service first. While that is down or its queue is full,
+  the worker falls back to `api.esmatlas.com` and the sequence leaves the server.
+  Set `ESMFOLD_FALLBACK_API_URL=` (empty) in `.env` to keep sequences here and
+  accept failed folds during those windows instead.
 - **Nothing here quotes a price.** `TWIST_API_KEY` no longer exists, and
   `/api/v1/procure/quote` returns no `price_usd` and no `lead_time_days` — both
   used to be invented locally (a hard-coded per-bp band table, and
@@ -212,7 +264,8 @@ Celery worker afterwards, so the API log is not where job time shows up.
 ```bash
 docker compose logs -f worker-heavy     # optimize/train: starts, failures, durations
 docker compose logs -f worker-fast      # predict/registry
-docker compose logs -f worker-io        # folding (ESMFold API errors show here)
+docker compose logs -f worker-io        # folding; a fallback to the public API logs a warning here
+docker compose logs -f esmfold          # fold service: model load, 503 queue-full, 499 callers that gave up
 docker compose ps                       # container health
 docker stats                            # GPU-host CPU/memory pressure
 

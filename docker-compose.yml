@@ -138,10 +138,12 @@ services:
 
   worker-io:
     <<: *worker-base
-    # fold_structure — blocked on the external ESMFold API, not on local compute,
-    # and it never loads ESM-2 (the engine registry is lazy), so this container
-    # stays light. Threads are safe here precisely because no torch model is
-    # involved; 4 folds can wait on the network at once.
+    # fold_structure — waits on an ESMFold HTTP endpoint and never loads a torch
+    # model (the engine registry is lazy), so this container stays light. Threads
+    # are safe here precisely because no torch model is involved; 4 folds can wait
+    # on the network at once. On the GPU stack that endpoint is the self-hosted
+    # esmfold service, which runs one fold at a time and queues the rest itself —
+    # these threads wait in its queue, so they need not match its single GPU slot.
     #
     # Note: app.core.limits arms its SIGALRM soft-limit backstop only on the main
     # thread, so it stands down under this pool. Folding is bounded instead by

@@ -1,0 +1,7 @@
+# torch is installed separately in the Dockerfile, from the CUDA index.
+# transformers, accelerate: the versions benchmark.py ran on (RTX 2080 Ti, 2026-09-14).
+# fastapi, uvicorn: the versions locked in backend/uv.lock.
+transformers==5.17.0
+accelerate==1.15.0
+fastapi==0.138.1
+uvicorn==0.49.0

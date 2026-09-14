@@ -1,12 +1,16 @@
 # ---------------------------------------------------------------------------
 # PyroForge — NVIDIA GPU override (production).
 #
-# Reserves the host GPU for the backend + Celery worker so ESM-2 embedding and
-# optimization run on CUDA instead of CPU. Requires the NVIDIA Container Toolkit
-# on the host. This override is NOT auto-merged — pass it explicitly, and set
-# DEVICE=cuda so the app selects the GPU:
+# Runs ESM-2 embedding and optimization on one card and the self-hosted ESMFold
+# service on another. Requires the NVIDIA Container Toolkit on the host. This
+# override is NOT auto-merged — pass it explicitly, and set DEVICE=cuda so the app
+# selects the GPU:
 #
 #   DEVICE=cuda docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+#
+# Which card is which, by the index `nvidia-smi` prints:
+#   PYROFORGE_GPU (default 0)  backend, worker-fast, worker-heavy — ESM-2 650M
+#   ESMFOLD_GPU   (default 1)  esmfold — ESMFold, ~9 GB peak at 400 residues
 #
 # (Do not combine with docker-compose.override.yml — that is the dev stack.)
 # ---------------------------------------------------------------------------
@@ -15,26 +19,58 @@ services:
     deploy:
       resources:
         reservations:
-          devices:
+          devices: &app-gpu
             - driver: nvidia
-              count: 1
+              device_ids: ["${PYROFORGE_GPU:-0}"]
               capabilities: [gpu]
 
-  # Only the two ESM-2 workers. worker-io just waits on the ESMFold HTTP API and
-  # never loads a torch model, so giving it the GPU would reserve VRAM for
-  # nothing. Both of these share the single card — two resident ESM-2 copies,
-  # ~2.5 GB VRAM each; on a small card, drop worker-fast back to DEVICE=cpu.
+  # The two ESM-2 workers share the app card with the backend — two resident
+  # ESM-2 copies, ~2.5 GB VRAM each. worker-io gets no card: folding runs in the
+  # esmfold service below, and worker-io only waits on it over HTTP.
   worker-fast:
     deploy:
       resources:
         reservations:
-          devices: &gpu-device
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+          devices: *app-gpu
 
   worker-heavy:
     deploy:
       resources:
         reservations:
-          devices: *gpu-device
+          devices: *app-gpu
+
+  worker-io:
+    environment:
+      ESMFOLD_API_URL: http://esmfold:8000/foldSequence/v1/pdb/
+      # Used only while the esmfold service is down or its queue is full. The
+      # public API still serves sequences it has folded before; new ones mostly
+      # time out there. Set ESMFOLD_FALLBACK_API_URL= (empty) in .env to keep
+      # sequences from ever leaving this server.
+      ESMFOLD_FALLBACK_API_URL: ${ESMFOLD_FALLBACK_API_URL-https://api.esmatlas.com/foldSequence/v1/pdb/}
+
+  # Self-hosted ESMFold (services/esmfold). Not published on the host: only
+  # worker-io reaches it, over the compose network.
+  esmfold:
+    build: ./services/esmfold
+    volumes:
+      # facebook/esmfold_v1 weights (~10 GB), downloaded once on the host — see
+      # docs/OPERATIONS.md. The image runs with HF_HUB_OFFLINE=1, so an empty
+      # directory fails at startup instead of starting a download.
+      - ${HOME}/.cache/huggingface:/hf
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${ESMFOLD_GPU:-1}"]
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Loads ~8 GB of weights and runs a warm-up fold before it answers.
+      start_period: 180s
+    # The one container holding a CUDA context across many requests. A driver-level
+    # fault kills the process; bring it back instead of leaving folds on the fallback.
+    restart: unless-stopped
