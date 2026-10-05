@@ -146,7 +146,7 @@ export function PredictionCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Melting temperature and folding stability for the current sequence.
+          Tm and folding stability for the current sequence.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector

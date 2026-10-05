@@ -139,8 +139,7 @@ export function RegistryCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Homologous BioBricks in a local snapshot of the iGEM Parts Registry
-          (MMseqs2).
+          Homologous BioBricks in the local iGEM Parts snapshot.
         </Text>
         {/* Said up front, not after the user submits and waits. The cause is
             outside this app: the iGEM Registry's bulk export sits behind a CDN

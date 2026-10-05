@@ -7,9 +7,9 @@ AA_TO_IDX = {aa: i for i, aa in enumerate(AA_VOCAB)}
 # are (N, 10)); it is NOT a cap on how many mutations the optimizer may select —
 # OptimizeRequest.max_mutations governs that.
 MAX_MUTATIONS = 10
-# Longest sequence accepted for embedding. Previously written as MAX_MUTATIONS * 100,
-# which coupled a request limit to an unrelated dataset column width.
-MAX_SEQUENCE_LENGTH = 1000
+# Longest sequence accepted. Folding, Tm, and the mutation scan are out of
+# regime past this length, so the API refuses rather than returning a number.
+MAX_SEQUENCE_LENGTH = 400
 MIN_SEQUENCE_LENGTH = 10
 
 

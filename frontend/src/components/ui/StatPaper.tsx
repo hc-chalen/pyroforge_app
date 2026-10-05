@@ -10,6 +10,7 @@ export function StatPaper({ children }: StatPaperProps) {
     <Paper
       p="sm"
       radius="md"
+      h="100%"
       style={{
         backgroundColor: "var(--pyro-card-nested-bg)",
         border: "1px solid var(--mantine-color-default-border)",

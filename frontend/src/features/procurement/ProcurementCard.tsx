@@ -1,6 +1,5 @@
 import {
   Alert,
-  Anchor,
   Badge,
   Button,
   Code,
@@ -10,10 +9,12 @@ import {
   SimpleGrid,
   Stack,
   Text,
+  Tooltip,
 } from "@mantine/core";
 import { useState } from "react";
 import { CardHeader } from "@/components/ui/CardHeader";
 import { InfoNote } from "@/components/ui/InfoNote";
+import { MetricLabel } from "@/components/ui/MetricLabel";
 import { WithheldNotice } from "@/components/ui/Withheld";
 import {
   SequenceVariantSelector,
@@ -84,6 +85,7 @@ export function ProcurementCard({
   }
 
   const displayError = localError;
+  const vendor = procurement?.vendor ?? "Twist";
 
   return (
     <Paper>
@@ -98,7 +100,7 @@ export function ProcurementCard({
           }
         />
         <Text size="sm" c="dimmed">
-          Codon optimization, then a hand-off to Twist Bioscience for ordering.
+          Codon-optimized CDS for Twist ordering.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector
@@ -116,21 +118,15 @@ export function ProcurementCard({
         {inputRefusal?.scope === "step" && (
           <WithheldNotice withheld={inputRefusal} />
         )}
-        {/* This card ends in a real order. The optimized variant is a model
-            shortlist whose top-5 precision is ~74% on held-out proteins and as low
-            as 0% on individual ones, so it must not reach an order page
-            without saying so. */}
         {variant === "optimized" && mutationCount > 0 && (
           <InfoNote
             tone="warning"
-            summary={`This quote is for ${mutationCount} unvalidated predicted mutation${
+            summary={`Quote is for ${mutationCount} unvalidated predicted mutation${
               mutationCount === 1 ? "" : "s"
-            }, it is suggested to order the wild type as a control for comparison.`}
+            }. Order the wild type as a control.`}
           >
-            The optimizer returns a ranked shortlist for screening: on held-out
-            proteins roughly a quarter of top-5 entries were not stabilizing, and
-            for some proteins none were. The quote buys an experiment, it does not
-            confirm a result.
+            The optimizer returns a ranked shortlist for screening, not a
+            confirmed design.
           </InfoNote>
         )}
         {displayError && (
@@ -140,47 +136,41 @@ export function ProcurementCard({
         )}
         {procurement && (
           <Stack gap="sm">
-            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
               <StatPaper>
-                <Text size="xs" c="dimmed">
-                  CAI
-                </Text>
-                <Text fw={700} ff="monospace">
+                <MetricLabel
+                  label="CAI"
+                  method="derived"
+                  tooltip={
+                    procurement.cai_reference
+                      ? `Scored vs ${procurement.cai_reference}`
+                      : "Codon Adaptation Index for the expression host."
+                  }
+                />
+                <Text fw={700} size="lg" ff="monospace" mt={4}>
                   {procurement.cai.toFixed(3)}
                 </Text>
-                {/* A CAI is meaningless without the reference set it was scored
-                    against, so the two are never shown apart. */}
-                {procurement.cai_reference && (
-                  <Text size="xs" c="dimmed">
-                    vs {procurement.cai_reference}
-                  </Text>
-                )}
               </StatPaper>
               <StatPaper>
-                <Text size="xs" c="dimmed">
-                  GC content
-                </Text>
-                <Text fw={700} ff="monospace">
-                  {/* Backend already returns a percentage (0–100). */}
+                <MetricLabel
+                  label="GC content"
+                  method="derived"
+                  tooltip="GC fraction of the codon-optimized CDS."
+                />
+                <Text fw={700} size="lg" ff="monospace" mt={4}>
                   {procurement.gc_content.toFixed(1)}%
                 </Text>
               </StatPaper>
             </SimpleGrid>
-            <Text size="xs" c="dimmed">
-              Organism: {procurement.organism} · variant: {variant}
-            </Text>
             {procurement.feasibility_flags.length > 0 && (
-              <Text size="xs">
+              <Text size="xs" c="dimmed">
                 Flags: {procurement.feasibility_flags.join(", ")}
               </Text>
             )}
-            <Code block ff="monospace" style={{ maxHeight: 120, overflow: "auto" }}>
+            <Code block ff="monospace" style={{ maxHeight: 88, overflow: "auto" }}>
               {procurement.dna_sequence}
             </Code>
-            {/* The card's actual endpoint. Twist has no documented deep link that
-                pre-fills a sequence, so the honest handoff is: put the CDS on the
-                clipboard and open their order page. */}
-            <Group gap="xs">
+            <Group gap="xs" wrap="wrap">
               <CopyButton value={procurement.dna_sequence} timeout={2000}>
                 {({ copied, copy }) => (
                   <Button variant="light" onClick={copy}>
@@ -189,43 +179,29 @@ export function ProcurementCard({
                 )}
               </CopyButton>
               {procurement.order_url && (
-                /* Copies on the way out: Twist cannot be deep-linked with a
-                   sequence, so arriving there without the CDS on the clipboard
-                   means going back for it. */
                 <CopyButton value={procurement.dna_sequence} timeout={2000}>
                   {({ copied, copy }) => (
-                    <Button
-                      component="a"
-                      href={procurement.order_url ?? undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={copy}
-                      variant="outline"
-                      color="brand"
+                    <Tooltip
+                      label={`Opens ${vendor} with the CDS on the clipboard. Paste it into their upload.`}
+                      multiline
+                      maw={260}
                     >
-                      {copied
-                        ? "CDS copied ↗"
-                        : `Order at ${procurement.vendor ?? "Twist"} ↗`}
-                    </Button>
+                      <Button
+                        component="a"
+                        href={procurement.order_url ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={copy}
+                        variant="outline"
+                        color="brand"
+                      >
+                        {copied ? "CDS copied ↗" : `Order at ${vendor} ↗`}
+                      </Button>
+                    </Tooltip>
                   )}
                 </CopyButton>
               )}
-              {procurement.pricing_url && (
-                <Anchor
-                  href={procurement.pricing_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="xs"
-                >
-                  Twist pricing ↗
-                </Anchor>
-              )}
             </Group>
-            <Text size="xs" c="dimmed">
-              Ordering opens {procurement.vendor ?? "Twist"} and needs an account
-              there. The CDS is copied to your clipboard on the way — paste it
-              into their sequence upload.
-            </Text>
           </Stack>
         )}
         <Group>

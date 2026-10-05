@@ -15,12 +15,14 @@
 
 import type { PredictResponse } from "@/types/api";
 
-/** Embedding limits enforced by the backend (app/models/regression.py). */
+/** Shared input ceiling. Past this length folding, Tm, and the mutation scan
+ *  are out of regime, so the sequence is refused at the input rather than
+ *  producing a number that looks precise. */
 export const SEQ_MIN_LENGTH = 10;
-export const SEQ_MAX_LENGTH = 1000;
+export const SEQ_MAX_LENGTH = 400;
 /** ESMFold ceiling, and the site-saturation scan ceiling (settings.optimize_max_length). */
-export const FOLD_MAX_LENGTH = 400;
-export const OPTIMIZE_MAX_LENGTH = 400;
+export const FOLD_MAX_LENGTH = SEQ_MAX_LENGTH;
+export const OPTIMIZE_MAX_LENGTH = SEQ_MAX_LENGTH;
 
 const STANDARD_AA = new Set("ACDEFGHIKLMNPQRSTVWY");
 
@@ -77,7 +79,7 @@ export function withheldSequence(sequence: string): Withheld | null {
   if (seq.length > SEQ_MAX_LENGTH) {
     return {
       headline: "Sequence too long",
-      reason: `${seq.length} residues; the embedding model accepts at most ${SEQ_MAX_LENGTH}.`,
+      reason: `${seq.length} residues; results are only reliable up to ${SEQ_MAX_LENGTH} amino acids.`,
       scope: "input",
     };
   }

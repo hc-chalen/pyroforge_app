@@ -218,7 +218,7 @@ export function ThermalStructureCard({
           }
         />
         <Text size="sm" c="dimmed">
-          ESMFold structure, coloured by per-residue thermal vulnerability.
+          ESMFold structure coloured by thermal vulnerability.
         </Text>
         {hasOptimizedVariant(optimization) && (
           <SequenceVariantSelector

@@ -104,8 +104,8 @@ export function OptimizationCard({
             </Badge>
           }
         />
-        <Text size="sm" c="dimmed" fw={500}>
-          Scans every SINGLE POINT MUTATION and ranks them by ΔΔG.
+        <Text size="sm" c="dimmed">
+          Ranks every single-point mutation by ΔΔG.
         </Text>
         {inputRefusal?.scope === "step" && (
           <WithheldNotice withheld={inputRefusal} />

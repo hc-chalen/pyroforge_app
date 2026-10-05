@@ -35,20 +35,21 @@ export function SequenceInputCard({
           value={sequence}
           onChange={(e) => updateSequence(analysisId, e.currentTarget.value)}
         />
-        {refusal ? (
-          <WithheldNotice withheld={refusal} />
-        ) : (
-          <Group justify="space-between" gap="xs">
-            <Text size="xs" c="dimmed">
-              Amino acids only, uppercased automatically.
+        {refusal && <WithheldNotice withheld={refusal} />}
+        <Group justify="space-between" gap="xs">
+          <Text size="xs" c="dimmed">
+            Amino acids only · 10–{SEQ_MAX_LENGTH} residues
+          </Text>
+          {length > 0 && (
+            <Text
+              size="xs"
+              c={length > SEQ_MAX_LENGTH ? "red" : "dimmed"}
+              ff="monospace"
+            >
+              {length} / {SEQ_MAX_LENGTH} aa
             </Text>
-            {length > 0 && (
-              <Text size="xs" c="dimmed" ff="monospace">
-                {length} / {SEQ_MAX_LENGTH} aa
-              </Text>
-            )}
-          </Group>
-        )}
+          )}
+        </Group>
       </Stack>
     </Paper>
   );
