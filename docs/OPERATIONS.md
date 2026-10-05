@@ -213,7 +213,7 @@ carries the protections that used to live in the trial's auth gateway:
 | GPU endpoints: 10/min per IP, burst 5 | The Celery pool is `--concurrency=1`; an unthrottled client can queue hours of work and lock everyone out. Covers `optimize`, `predict`, `predict/job`, `visualize/fold`, `visualize/heatmap`, `embed/compare`, `registry/search`. |
 | `/api/v1/jobs/…`: 180/min per IP, burst 60 | Status polling runs every 2s per job — deliberately generous. |
 | Other `/api/`: 60/min per IP | Cheap reads. |
-| 10 concurrent connections per IP | Stops one client parking connections on the 300s proxy timeout. |
+| 32 concurrent connections per IP | Stops one client parking connections on the 300s proxy timeout. Sized for a room, not a person: a class behind one campus NAT address shares this number, and browsers open up to 6 connections per origin per tab. |
 | `client_max_body_size 1m` | The largest legitimate request is a 1000-residue sequence, ~1 KB. |
 
 Throttled requests get `429`. To retrain, or to reach the API unthrottled, go
@@ -281,3 +281,50 @@ Rate-limit rejections show up as `429` in the frontend's access log:
 ```bash
 docker compose logs frontend | grep ' 429 '
 ```
+
+---
+
+## Load testing before a UAT
+
+[scripts/uat_loadtest.py](../scripts/uat_loadtest.py) walks the same endpoints the
+UI does, in the same order, polling jobs on the same 2 s interval. Stdlib only, so
+it runs on the server without installing anything.
+
+```bash
+# Backend capacity, nginx not in the path. This is the right target when the
+# testers are on their own connections — separate IPs, so the per-IP limits
+# never bind and what you are measuring is the workers.
+python3 scripts/uat_loadtest.py --users 30 --flow predict --base-url http://127.0.0.1:8000
+
+# What a room on one shared network actually gets, rate limits included.
+python3 scripts/uat_loadtest.py --users 30 --flow light --base-url http://localhost:3002
+```
+
+`--flow full` adds `optimize`. That is a site-saturation scan on a single Celery
+slot **with no result cache**, so N testers on the same protein is N identical
+scans run back to back, not one. Measure one scan and multiply rather than
+waiting for thirty.
+
+Measured with 30 users against the CPU dev stack, 84-residue protein, one shared
+between all of them (the class-UAT shape):
+
+| Flow | Wall clock | Slowest user | Failures |
+|---|---|---|---|
+| `predict` × 30 | 18 s | 18 s | none |
+| `light` × 30 | 39 s | 20 s | none |
+| `full` × 30, cold cache | 189 s | 143 s | none |
+| `full` × 30, warm cache | 39 s | 18 s | none |
+
+The `full` numbers are what they are because of the result cache: one optimize
+scan costs 134 s and the other twenty-nine are reads. Without it the same run is
+thirty scans on one worker — a little over an hour, with the last tester watching
+a spinner for all of it.
+
+Two bugs this found, both only visible under concurrency:
+
+- `/api/v1/embed/compare` returned `500` for 5 of 30 callers. fair-esm's
+  RotaryEmbedding memoises state on the module, and the synchronous API routes run
+  in FastAPI's threadpool, so two forward passes at once raced. `ESM2Service`
+  serialises them now.
+- The same herd all missed the empty cache and computed the same result thirty
+  times over. `ResultCache.get_or_compute` makes the losers wait for the winner.

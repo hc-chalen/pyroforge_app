@@ -24,6 +24,7 @@ from app.api.schemas import (
 )
 from app.services.esm2 import ESM2Service, get_esm2_service
 from app.services.nas_report import load_nas_report
+from app.services.result_cache import get_result_cache
 from app.api.errors import format_task_error
 from app.core.celery_app import celery_app
 from app.core.config import settings
@@ -200,12 +201,27 @@ def nas_report() -> NasReportResponse:
 
 @router.post("/embed/compare", response_model=EmbedCompareResponse)
 def compare_embeddings(body: EmbedCompareRequest) -> EmbedCompareResponse:
-    try:
+    # Two ESM-2 forward passes inside the API process — ~21 s for a pair of 84-mers,
+    # and no Celery queue in front of it. It is also the card a whole room reaches at
+    # once as soon as optimize starts coming back from cache.
+    cache = get_result_cache("embed_compare")
+    cache_key = {
+        "original": body.sequence_original.strip().upper(),
+        "optimized": body.sequence_optimized.strip().upper(),
+    }
+    def compute() -> dict:
         esm2 = get_esm2_service()
         result = esm2.compare_embeddings(
             body.sequence_original,
             body.sequence_optimized,
         )
-        return EmbedCompareResponse(**result)
+        # Store the validated payload, not the raw engine output: that one carries
+        # numpy scalars, which do not survive json.dumps.
+        return EmbedCompareResponse(**result).model_dump()
+
+    try:
+        payload = cache.get_or_compute(cache_key, compute)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+    return EmbedCompareResponse(**payload)

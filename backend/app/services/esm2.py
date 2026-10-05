@@ -31,6 +31,7 @@ class ESM2Service:
         self.model.eval()
         self.batch_converter = self.alphabet.get_batch_converter()
         self.layer = 33
+        self._forward_lock = Lock()
         logger.info("ESM-2 model loaded on %s", self.device)
 
     @classmethod
@@ -44,6 +45,23 @@ class ESM2Service:
     @classmethod
     def is_ready(cls) -> bool:
         return cls._instance is not None
+
+    def _forward(self, tokens, **kwargs):
+        """Run the shared model, one caller at a time.
+
+        fair-esm's RotaryEmbedding memoises `_cos_cached`/`_sin_cached` on the
+        module itself, so two threads running a forward pass at once can read one
+        of them while the other is still assigning it. That surfaced as
+        `AttributeError: 'NoneType' object has no attribute 'device'` — a 500 from
+        /api/v1/embed/compare for 5 of 30 concurrent testers.
+
+        The Celery workers never hit it: their pool is solo, one task at a time.
+        The synchronous API routes run in FastAPI's threadpool, which offers no
+        such guarantee. Serialising costs nothing real — one model on one device,
+        and the GIL already stopped these from overlapping usefully.
+        """
+        with self._forward_lock:
+            return self.model(tokens, **kwargs)
 
     def _tokenize(self, sequences: list[str]) -> tuple:
         data = [(f"seq_{i}", seq) for i, seq in enumerate(sequences)]
@@ -60,7 +78,7 @@ class ESM2Service:
         for i in range(0, len(sequences), batch_size):
             batch = sequences[i : i + batch_size]
             tokens = self._tokenize(batch)
-            out = self.model(tokens, repr_layers=[self.layer], return_contacts=False)
+            out = self._forward(tokens, repr_layers=[self.layer], return_contacts=False)
             reps = out["representations"][self.layer]
             for j, seq in enumerate(batch):
                 # exclude BOS/EOS tokens
@@ -143,7 +161,7 @@ class ESM2Service:
         """
         tokens = self._tokenize([wt_sequence])
         tokens[0, position + 1] = self.alphabet.mask_idx  # position + 1 for BOS offset
-        out = self.model(tokens)
+        out = self._forward(tokens)
         logits = out["logits"][0, position + 1]
         probs = torch.softmax(logits, dim=-1)
         return {aa: float(probs[self.alphabet.get_idx(aa)].item()) for aa in AA_VOCAB}

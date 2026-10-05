@@ -6,6 +6,7 @@ from app.core.limits import Deadline, soft_time_limit
 from app.engines.prediction import Mutation
 from app.engines.registry import get_engine_registry
 from app.services.esm2 import get_esm2_service
+from app.services.result_cache import get_result_cache
 from app.training.train import run_training
 
 
@@ -41,6 +42,21 @@ def optimize_sequence(
     max_mutations: int = 5,
     perplexity_threshold: float = 0.05,
 ) -> dict:
+    # The scan is deterministic in its inputs and the loaded checkpoints, so a
+    # second person asking for the same protein is asking for a result that already
+    # exists. Without this every tester in a room pays the full scan again, one at
+    # a time, on the single heavy worker.
+    cache = get_result_cache("optimizations")
+    cache_key = {
+        "sequence": sequence.strip().upper(),
+        "max_mutations": max_mutations,
+        "perplexity_threshold": perplexity_threshold,
+    }
+    cached = cache.get(cache_key)
+    if cached is not None:
+        self.update_state(state="PROGRESS", meta={"progress": 1.0})
+        return cached
+
     reg = get_engine_registry()
     # The SIGALRM backstop in app.core.limits cannot interrupt a task parked
     # inside a single long C call, so the scan also checks its budget from the
@@ -66,7 +82,7 @@ def optimize_sequence(
         emb_a=result.wt_embedding,
         emb_b=result.variant_embedding,
     )
-    return {
+    payload = {
         "wild_type_sequence": result.wild_type_sequence,
         "optimized_sequence": result.optimized_sequence,
         "mutations": [
@@ -83,6 +99,8 @@ def optimize_sequence(
         "scan_summary": result.scan_summary,
         "structure_comparison": structure_comparison,
     }
+    cache.put(cache_key, payload)
+    return payload
 
 
 @celery_app.task(bind=True, name="app.tasks.fold_structure")

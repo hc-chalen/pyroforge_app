@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     max_mutations_default: int = 5
     celery_result_expires: int = 86400
 
+    # Cache deterministic engine results (optimize scans, embedding comparisons)
+    # on disk under cache_dir. A room of testers on one protein otherwise makes the
+    # single heavy worker recompute the same 134 s scan once per person. Set false
+    # to measure cold cost, or if a non-deterministic engine is ever added.
+    result_cache_enabled: bool = True
+
     # NOTE: ddg_effect_size_sigma / ddg_min_effect_fallback were removed. They
     # configured a kσ "significance gate" on each candidate mutation, which was a
     # per-comparison threshold applied to the L×19 candidates of a whole scan — it
