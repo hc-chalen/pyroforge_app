@@ -5,6 +5,7 @@ import { stripPdbForPersist } from "@/store/persistSanitize";
 import type {
   FoldResult,
   HeatmapResponse,
+  InputFormat,
   OptimizationResult,
   PredictResponse,
   ProcureResponse,
@@ -13,6 +14,7 @@ import type {
   StructureComparison,
   VariantResults,
 } from "@/types/api";
+import { normalizeDna, translateDna } from "@/utils/translateDna";
 
 // crypto.randomUUID() only exists in a secure context (HTTPS or localhost).
 // When the app is served over plain http:// (e.g. a LAN/Tailscale IP), fall
@@ -35,7 +37,12 @@ export type AnalysisStatus = "draft" | "running" | "complete" | "error";
 export interface Analysis {
   id: string;
   name: string;
+  /** Protein sequence sent to all models. Derived from DNA when inputFormat is "dna". */
   sequence: string;
+  /** What the user is pasting: amino acids or DNA (translated at the input edge). */
+  inputFormat?: InputFormat;
+  /** Raw DNA paste when inputFormat is "dna". */
+  dnaSequence?: string;
   status: AnalysisStatus;
   pinned?: boolean;
   sequenceVariant?: SequenceVariant;
@@ -69,6 +76,8 @@ interface AnalysisState {
   renameAnalysis: (id: string, name: string) => void;
   togglePin: (id: string) => void;
   updateSequence: (id: string, sequence: string) => void;
+  updateInputFormat: (id: string, format: InputFormat) => void;
+  updateDnaSequence: (id: string, dna: string) => void;
   setStatus: (id: string, status: AnalysisStatus) => void;
   setError: (id: string, error: string | undefined) => void;
   // Each setter records the sequence the result was computed on, so a later edit to
@@ -130,6 +139,7 @@ export const useAnalysisStore = create<AnalysisState>()(
           id,
           name,
           sequence: "",
+          inputFormat: "aa",
           status: "draft",
         };
         set((state) => ({
@@ -238,8 +248,52 @@ export const useAnalysisStore = create<AnalysisState>()(
       updateSequence: (id, sequence) =>
         set((state) => ({
           analyses: state.analyses.map((a) =>
-            a.id === id ? { ...a, sequence: sequence.toUpperCase() } : a,
+            a.id === id
+              ? {
+                  ...a,
+                  sequence: sequence.toUpperCase(),
+                  inputFormat: "aa",
+                  dnaSequence: undefined,
+                }
+              : a,
           ),
+        })),
+
+      updateInputFormat: (id, format) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) => {
+            if (a.id !== id) return a;
+            if (format === "aa") {
+              return {
+                ...a,
+                inputFormat: "aa",
+                dnaSequence: undefined,
+                // Keep any already-translated protein so switching back is lossless.
+              };
+            }
+            const dna = a.dnaSequence ?? "";
+            return {
+              ...a,
+              inputFormat: "dna",
+              dnaSequence: dna,
+              // Keep existing protein until DNA is pasted so AA→DNA→AA is lossless.
+              sequence: dna ? translateDna(dna) : a.sequence,
+            };
+          }),
+        })),
+
+      updateDnaSequence: (id, dna) =>
+        set((state) => ({
+          analyses: state.analyses.map((a) => {
+            if (a.id !== id) return a;
+            const normalized = normalizeDna(dna);
+            return {
+              ...a,
+              inputFormat: "dna",
+              dnaSequence: normalized,
+              sequence: translateDna(normalized),
+            };
+          }),
         })),
 
       setStatus: (id, status) =>

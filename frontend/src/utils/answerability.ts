@@ -13,7 +13,8 @@
  * "show anyway" — the user can still see it, but never by accident.
  */
 
-import type { PredictResponse } from "@/types/api";
+import type { InputFormat, PredictResponse } from "@/types/api";
+import { normalizeDna, translateDna } from "@/utils/translateDna";
 
 /** Shared input ceiling. Past this length folding, Tm, and the mutation scan
  *  are out of regime, so the sequence is refused at the input rather than
@@ -24,7 +25,12 @@ export const SEQ_MAX_LENGTH = 400;
 export const FOLD_MAX_LENGTH = SEQ_MAX_LENGTH;
 export const OPTIMIZE_MAX_LENGTH = SEQ_MAX_LENGTH;
 
+/** DNA paste ceiling (nt). Allows modest flanks around a ≤400-aa CDS. */
+export const DNA_MIN_LENGTH = 30;
+export const DNA_MAX_LENGTH = 3_600;
+
 const STANDARD_AA = new Set("ACDEFGHIKLMNPQRSTVWY");
+const DNA_BASES = new Set("ACGT");
 
 export interface Withheld {
   /** Short headline for the refusal, e.g. "Outside training range". */
@@ -46,8 +52,8 @@ export interface Withheld {
   extrapolated?: boolean;
 }
 
-/** Input gate: can this sequence be sent to the models at all? */
-export function withheldSequence(sequence: string): Withheld | null {
+/** Protein alphabet/length gate used by every downstream card. */
+export function withheldProteinSequence(sequence: string): Withheld | null {
   const seq = sequence.trim().toUpperCase();
   if (!seq) return null; // empty input is "nothing asked yet", not a refusal
 
@@ -84,6 +90,71 @@ export function withheldSequence(sequence: string): Withheld | null {
     };
   }
   return null;
+}
+
+/** DNA paste gate: alphabet, length, then translate + protein checks. */
+export function withheldDnaSequence(dna: string): Withheld | null {
+  const raw = dna.trim();
+  if (!raw) return null;
+
+  if (raw.startsWith(">")) {
+    return {
+      headline: "FASTA header found",
+      reason: "Paste the nucleotides only — delete the “>” description line.",
+      scope: "input",
+    };
+  }
+
+  const seq = normalizeDna(raw);
+  const invalid = [...new Set([...seq].filter((c) => !DNA_BASES.has(c)))];
+  if (invalid.length > 0) {
+    return {
+      headline: "Not a DNA sequence",
+      reason: `Contains ${invalid
+        .slice(0, 6)
+        .map((c) => `“${c}”`)
+        .join(", ")}${invalid.length > 6 ? " and others" : ""}. Only A, C, G, T/U are accepted.`,
+      scope: "input",
+    };
+  }
+  if (seq.length < DNA_MIN_LENGTH) {
+    return {
+      headline: "DNA too short",
+      reason: `${seq.length} nt; paste at least ${DNA_MIN_LENGTH} bases (enough for a short CDS).`,
+      scope: "input",
+    };
+  }
+  if (seq.length > DNA_MAX_LENGTH) {
+    return {
+      headline: "DNA too long",
+      reason: `${seq.length} nt; paste at most ${DNA_MAX_LENGTH} bases.`,
+      scope: "input",
+    };
+  }
+
+  const protein = translateDna(seq);
+  if (!protein) {
+    return {
+      headline: "No coding sequence found",
+      reason:
+        "No ATG→stop ORF was found on the forward strand. Paste a protein-coding DNA sequence.",
+      scope: "input",
+    };
+  }
+  return withheldProteinSequence(protein);
+}
+
+/**
+ * Input gate for the Sequence Input card.
+ * Downstream cards should keep calling this with protein only (default `"aa"`).
+ */
+export function withheldSequence(
+  sequence: string,
+  format: InputFormat = "aa",
+): Withheld | null {
+  return format === "dna"
+    ? withheldDnaSequence(sequence)
+    : withheldProteinSequence(sequence);
 }
 
 /** Folding gate: ESMFold's own length ceiling. */

@@ -84,6 +84,9 @@ export interface MutationResult {
 
 export type SequenceVariant = "original" | "optimized";
 
+/** What the user pastes into Sequence Input. Models always receive protein. */
+export type InputFormat = "aa" | "dna";
+
 export interface StructureComparison {
   similarity: number;
   cosine_similarity: number;

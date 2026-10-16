@@ -124,6 +124,8 @@ export function App() {
                 <SequenceInputCard
                   analysisId={selected.id}
                   sequence={selected.sequence}
+                  inputFormat={selected.inputFormat}
+                  dnaSequence={selected.dnaSequence}
                 />
                 <CompositionCard sequence={selected.sequence} />
                 <PredictionCard
