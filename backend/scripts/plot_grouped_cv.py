@@ -33,6 +33,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import pearsonr, spearmanr
 
 MIN_MUTATIONS_PER_PROTEIN = 20
@@ -162,7 +163,11 @@ def panel_scatter(ax, pred: np.ndarray, true: np.ndarray) -> None:
         loc="left", fontweight="bold",
     )
     ax.legend(frameon=False, fontsize=8, loc="upper left")
-    plt.colorbar(hb, ax=ax, label="mutations (log)", fraction=0.046, pad=0.02)
+    # Divider keeps the colorbar from stretching the axes, so one kcal/mol
+    # is the same length on x and y and y = x stays at 45°.
+    cax = make_axes_locatable(ax).append_axes("right", size="4%", pad=0.08)
+    ax.figure.colorbar(hb, cax=cax, label="mutations (log)")
+    ax.set_aspect("equal", adjustable="box")
 
 
 def panel_precision_spread(ax, s: dict) -> None:

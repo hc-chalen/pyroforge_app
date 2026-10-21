@@ -43,6 +43,15 @@ logger = logging.getLogger("bench.s669")
 _BLUE, _ORANGE, _GREEN, _RED, _GREY = "#2f6f9f", "#c26a12", "#1d874b", "#c0392f", "#8fa0ad"
 
 
+def _square_axes(ax, lo: float, hi: float, pad: float = 0.04) -> None:
+    """Give x and y the same data scale so one unit has the same length on both."""
+    span = float(hi) - float(lo)
+    margin = pad * span if span > 0 else 1.0
+    ax.set_xlim(lo - margin, hi + margin)
+    ax.set_ylim(lo - margin, hi + margin)
+    ax.set_aspect("equal", adjustable="box")
+
+
 def _git_sha() -> str:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
@@ -215,6 +224,7 @@ def _plots(report, variants, true_dir, true_inv, ddg_dir, ddg_inv, zs_dir, prote
                label=f">400 aa (n={(~in_regime).sum()})")
     lims = [min(ddg_dir.min(), true_dir.min()) - 0.5, max(ddg_dir.max(), true_dir.max()) + 0.5]
     ax.plot(lims, lims, "k--", lw=0.8)
+    _square_axes(ax, *lims, pad=0)
     ax.set_xlabel("model_ddg predicted ΔΔG"); ax.set_ylabel("experimental ΔΔG")
     ax.set_title(f"model_ddg on S669 (ρ={rho('model_ddg'):.3f})")
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -224,6 +234,7 @@ def _plots(report, variants, true_dir, true_inv, ddg_dir, ddg_inv, zs_dir, prote
     anti = results["model_ddg"]["antisymmetry"]
     span = [min(ddg_dir.min(), ddg_inv.min()), max(ddg_dir.max(), ddg_inv.max())]
     ax.plot(span, [-x for x in span], "k--", lw=0.8, label="perfect antisymmetry")
+    _square_axes(ax, *span)
     ax.set_xlabel("predicted ΔΔG (direct)"); ax.set_ylabel("predicted ΔΔG (inverse)")
     ax.set_title(f"Antisymmetry: r={anti['r_dir_inv']:.3f}, bias δ={anti['bias_mean_sum']:.3f}")
     ax.legend(fontsize=8); ax.grid(alpha=0.3)

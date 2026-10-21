@@ -48,6 +48,15 @@ logger = logging.getLogger("bench.tm")
 _BLUE, _ORANGE, _GREEN, _RED, _GREY = "#2f6f9f", "#c26a12", "#1d874b", "#c0392f", "#8fa0ad"
 
 
+def _square_axes(ax, lo: float, hi: float, pad: float = 0.04) -> None:
+    """Give x and y the same data scale so one unit has the same length on both."""
+    span = float(hi) - float(lo)
+    margin = pad * span if span > 0 else 1.0
+    ax.set_xlim(lo - margin, hi + margin)
+    ax.set_ylim(lo - margin, hi + margin)
+    ax.set_aspect("equal", adjustable="box")
+
+
 def _corr(pred, true) -> tuple[float, float]:
     from scipy.stats import pearsonr, spearmanr
 
@@ -217,6 +226,7 @@ def _plot(report, y, pred, plots_dir: Path) -> None:
     ax.scatter(pred, y, s=8, alpha=0.4, color=_BLUE)
     lims = [min(pred.min(), y.min()) - 2, max(pred.max(), y.max()) + 2]
     ax.plot(lims, lims, "k--", lw=0.8)
+    _square_axes(ax, *lims, pad=0)
     g = report["global"]
     ax.set_xlabel("predicted Tm (°C)"); ax.set_ylabel("experimental Tm (°C)")
     ax.set_title(f"model_tm on Meltome test\nr={g['pearson_r']:.3f}  ρ={g['spearman_rho']:.3f}"

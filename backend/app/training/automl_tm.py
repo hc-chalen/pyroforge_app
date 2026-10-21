@@ -230,6 +230,15 @@ def run_automl_tm(
     return report
 
 
+def _square_axes(ax, lo: float, hi: float, pad: float = 0.04) -> None:
+    """Give x and y the same data scale so one unit has the same length on both."""
+    span = float(hi) - float(lo)
+    margin = pad * span if span > 0 else 1.0
+    ax.set_xlim(lo - margin, hi + margin)
+    ax.set_ylim(lo - margin, hi + margin)
+    ax.set_aspect("equal", adjustable="box")
+
+
 def _plot_comparison(base_m, apt_m, yte, base_pred, apt_pred, winner, out_dir: Path) -> None:
     fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
     # MAE / Pearson bars
@@ -248,6 +257,7 @@ def _plot_comparison(base_m, apt_m, yte, base_pred, apt_pred, winner, out_dir: P
     lo, hi = min(yte.min(), apt_pred.min()), max(yte.max(), apt_pred.max())
     axes[2].scatter(yte, apt_pred, alpha=0.3, s=10, edgecolors="none", c="#f59e0b")
     axes[2].plot([lo, hi], [lo, hi], "r--", lw=1)
+    _square_axes(axes[2], lo, hi)
     axes[2].set_xlabel("Actual Tm (°C)"); axes[2].set_ylabel("Predicted Tm (°C)")
     axes[2].set_title(f"AutoML ({winner}) — r={apt_m['pearson']:.3f}, MAE={apt_m['mae']:.2f}")
     fig.suptitle("Absolute Tm: baseline vs AutoML", y=1.02, fontsize=13)

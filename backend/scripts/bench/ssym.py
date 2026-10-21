@@ -63,6 +63,16 @@ logger = logging.getLogger("bench.ssym")
 
 _BLUE, _ORANGE, _RED, _GREY = "#2f6f9f", "#c26a12", "#c0392f", "#8fa0ad"
 
+
+def _square_axes(ax, lo: float, hi: float, pad: float = 0.04) -> None:
+    """Give x and y the same data scale so one unit has the same length on both."""
+    span = float(hi) - float(lo)
+    margin = pad * span if span > 0 else 1.0
+    ax.set_xlim(lo - margin, hi + margin)
+    ax.set_ylim(lo - margin, hi + margin)
+    ax.set_aspect("equal", adjustable="box")
+
+
 SSYM_CSV_URL = "https://protddg-bench.github.io/data/ssym.csv"
 RCSB_URL = "https://files.rcsb.org/download/{pdb}.pdb"
 _MUT_RE = re.compile(r"^([A-Z])(\d+)([A-Z])$")
@@ -199,6 +209,7 @@ def _plot(report, ddg_dir, ddg_inv, true_dir, proteins, plots_dir: Path) -> None
     anti = report["results"]["model_ddg"]["antisymmetry"]
     span = [float(min(ddg_dir.min(), ddg_inv.min())), float(max(ddg_dir.max(), ddg_inv.max()))]
     ax.plot(span, [-s for s in span], "k--", lw=0.9, label="perfect antisymmetry")
+    _square_axes(ax, *span)
     ax.set_xlabel("predicted ΔΔG (direct)"); ax.set_ylabel("predicted ΔΔG (reverse)")
     ax.set_title(f"Antisymmetry on Ssym\nr={anti['r_dir_inv']:.3f}, bias δ={anti['bias_mean_sum']:+.3f}")
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -221,6 +232,10 @@ def _plot(report, ddg_dir, ddg_inv, true_dir, proteins, plots_dir: Path) -> None
     ax = axes[2]
     ax.scatter(ddg_dir, true_dir, s=14, alpha=0.55, color=_BLUE)
     m = report["results"]["model_ddg"]["direct"]
+    lo = float(min(ddg_dir.min(), true_dir.min()))
+    hi = float(max(ddg_dir.max(), true_dir.max()))
+    ax.plot([lo, hi], [lo, hi], "k--", lw=0.9)
+    _square_axes(ax, lo, hi)
     ax.set_xlabel("predicted ΔΔG"); ax.set_ylabel("experimental ΔΔG")
     ax.set_title(f"model_ddg on Ssym\nρ={m['spearman_rho']:.3f}  r={m['pearson_r']:.3f}  n={m['n']}")
     ax.grid(alpha=0.3)
