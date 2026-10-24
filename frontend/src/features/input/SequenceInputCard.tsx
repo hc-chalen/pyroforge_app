@@ -101,7 +101,7 @@ export function SequenceInputCard({
           <Text size="xs" c="dimmed">
             {inputFormat === "dna"
               ? `DNA (A/C/G/T) · translated to protein · 10–${SEQ_MAX_LENGTH} aa after ORF`
-              : `Amino acids only · 10–${SEQ_MAX_LENGTH} residues`}
+              : `10–${SEQ_MAX_LENGTH} residues`}
           </Text>
           {length > 0 && (
             <Text
